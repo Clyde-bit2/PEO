@@ -1,0 +1,465 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>PEO Isabela — Attendance Check-In</title>
+<style>
+  :root{
+    --navy:#1B7A43;
+    --steel:#2FA85F;
+    --slate:#2E6B45;
+    --paper:#F3F1EC;
+    --accent:#C8702A;
+    --error:#B3261E;
+    --ok:#2E9E4F;
+  }
+  *{box-sizing:border-box;}
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:'Segoe UI',Arial,sans-serif;
+    background:var(--navy);
+    background-image:linear-gradient(160deg, var(--navy) 0%, #2FA85F 100%);
+    min-height:100vh;
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    padding:0;
+  }
+  .app-shell{
+    width:100%;
+    max-width:460px;
+    min-height:100vh;
+    background:var(--paper);
+    display:flex;
+    flex-direction:column;
+  }
+  header{
+    background:var(--navy);
+    color:#fff;
+    padding:18px 20px 16px;
+    text-align:center;
+  }
+  header .eyebrow{ font-size:11px; letter-spacing:2px; color:#DCEFE1; text-transform:uppercase; }
+  header h1{ margin:4px 0 0; font-size:18px; font-weight:700; }
+  main{ flex:1; padding:20px; }
+  .card{
+    background:#fff;
+    border-radius:12px;
+    padding:20px 18px;
+    box-shadow:0 10px 24px rgba(0,0,0,.12);
+    margin-bottom:16px;
+  }
+  label{ display:block; font-size:12px; font-weight:700; color:var(--navy); margin:0 0 6px; }
+  input{
+    width:100%;
+    padding:13px 14px;
+    border:1px solid #D8D4CA;
+    border-radius:8px;
+    font-size:16px;
+    background:var(--paper);
+    color:#1c1c1c;
+    outline:none;
+  }
+  input:focus{ border-color:var(--steel); box-shadow:0 0 0 3px rgba(27,122,67,.18); background:#fff; }
+  .hint{ font-size:11.5px; color:var(--slate); margin-top:6px; line-height:1.5; }
+  .btn{
+    width:100%;
+    padding:14px;
+    margin-top:16px;
+    background:var(--navy);
+    color:#fff;
+    border:none;
+    border-radius:8px;
+    font-size:15px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .btn:active{ transform:scale(.99); }
+  .btn:disabled{ background:#B9C4BC; cursor:not-allowed; }
+  .btn.secondary{ background:#fff; color:var(--navy); border:1px solid #D8D4CA; }
+  .btn.danger{ background:var(--error); }
+  .btn.ok{ background:var(--ok); }
+  .errmsg{ font-size:12.5px; color:var(--error); margin-top:6px; min-height:14px; }
+  .banner{ display:none; border-radius:8px; padding:12px 14px; font-size:13px; margin-bottom:14px; }
+  .banner.show{ display:block; }
+  .banner.success{ background:#E5F4EB; color:var(--ok); border:1px solid #BCE3CA; }
+  .banner.error{ background:#FBEAE9; color:var(--error); border:1px solid #F2C4C1; }
+
+  .profile-row{ display:flex; align-items:center; gap:12px; margin-bottom:6px; }
+  .avatar{
+    width:52px; height:52px; border-radius:50%; background:var(--navy); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:800; font-size:17px; flex-shrink:0;
+  }
+  .profile-row strong{ display:block; font-size:16px; color:var(--navy); }
+  .profile-row span{ display:block; font-size:12.5px; color:#666; }
+  .status-pill{
+    display:inline-block; font-size:11.5px; font-weight:700; padding:4px 12px; border-radius:12px; margin-top:8px;
+  }
+  .status-pill.in{ background:#E5F4EB; color:var(--ok); }
+  .status-pill.out{ background:#ECE8DE; color:var(--slate); }
+  .status-pill.none{ background:#FBEAE9; color:var(--error); }
+
+  .cam-wrap{
+    position:relative; width:100%; aspect-ratio:1/1; border-radius:10px; overflow:hidden;
+    background:#111; margin-top:12px;
+  }
+  .cam-wrap video, .cam-wrap canvas, .cam-wrap img{
+    width:100%; height:100%; object-fit:cover; display:block;
+  }
+  .cam-controls{ display:flex; gap:10px; margin-top:12px; }
+  .cam-controls .btn{ margin-top:0; }
+  .geo-status{ font-size:12px; color:var(--slate); margin-top:10px; display:flex; align-items:center; gap:6px; }
+  .dot{ width:8px; height:8px; border-radius:50%; background:#ccc; flex-shrink:0; }
+  .dot.ok{ background:var(--ok); }
+  .dot.bad{ background:var(--error); }
+
+  .action-row{ display:flex; gap:10px; margin-top:8px; }
+  .action-row .btn{ margin-top:0; flex:1; }
+
+  .history-item{
+    display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid #ECE8DE; font-size:12.5px;
+  }
+  .history-item:last-child{ border-bottom:none; }
+  .history-item .h-dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+  .history-item .h-dot.in{ background:var(--ok); }
+  .history-item .h-dot.out{ background:var(--slate); }
+  .history-item .h-text{ flex:1; color:#333; }
+  .history-item .h-time{ color:var(--slate); font-size:11px; white-space:nowrap; }
+
+  .center-link{ text-align:center; margin-top:14px; font-size:12.5px; color:var(--slate); }
+  .center-link a{ color:var(--steel); text-decoration:none; font-weight:600; }
+
+  .success-screen{ text-align:center; padding:20px 10px; }
+  .success-screen .check{
+    width:64px; height:64px; border-radius:50%; background:var(--ok); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:32px; margin:0 auto 14px;
+  }
+  .success-screen h3{ margin:0 0 6px; color:var(--navy); }
+  .success-screen p{ margin:0; color:#555; font-size:13px; }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header>
+    <div class="eyebrow">Province of Isabela</div>
+    <h1>📷 Field Worker Attendance</h1>
+  </header>
+
+  <main>
+
+    <!-- STEP 1: CP NUMBER LOOKUP -->
+    <div class="card" id="step-lookup">
+      <div class="banner" id="lookup-banner"></div>
+      <label for="cp-input">Enter your CP Number</label>
+      <input type="text" id="cp-input" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11">
+      <div class="errmsg" id="err-cp"></div>
+      <div class="hint">Not registered yet? Register on the main website first (Sign In screen → "Register with your CP number"), then come back here.</div>
+      <button class="btn" id="lookup-btn">Continue</button>
+      <div class="center-link">
+        <a href="index.html">← Register on main website</a>
+      </div>
+    </div>
+
+    <!-- STEP 2: PROFILE + CAMERA CHECK-IN -->
+    <div class="card" id="step-profile" style="display:none;">
+      <div class="profile-row">
+        <div class="avatar" id="p-avatar">--</div>
+        <div>
+          <strong id="p-name">—</strong>
+          <span id="p-project">—</span>
+        </div>
+      </div>
+      <span class="status-pill none" id="p-status">Not Checked In</span>
+
+      <div class="cam-wrap" id="cam-wrap">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="canvas" style="display:none;"></canvas>
+        <img id="captured-img" style="display:none;" alt="Captured selfie">
+      </div>
+      <div class="errmsg" id="err-cam"></div>
+
+      <div class="geo-status" id="geo-status"><span class="dot" id="geo-dot"></span><span id="geo-text">Getting your location…</span></div>
+
+      <div class="cam-controls" id="cam-controls-initial">
+        <button class="btn secondary" id="start-cam-btn" type="button" style="margin-top:12px;">📷 Turn On Camera</button>
+      </div>
+      <div class="cam-controls" id="cam-controls-live" style="display:none;">
+        <button class="btn ok" id="capture-btn" type="button">Capture Selfie</button>
+      </div>
+      <div class="cam-controls" id="cam-controls-review" style="display:none;">
+        <button class="btn secondary" id="retake-btn" type="button">Retake</button>
+      </div>
+
+      <div class="action-row">
+        <button class="btn ok" id="checkin-btn" type="button" disabled>Check In</button>
+        <button class="btn danger" id="checkout-btn" type="button" disabled>Check Out</button>
+      </div>
+      <div class="errmsg" id="err-submit"></div>
+
+      <button class="btn secondary" id="switch-cp-btn" type="button">Switch CP Number</button>
+    </div>
+
+    <!-- STEP 3: SUCCESS -->
+    <div class="card success-screen" id="step-success" style="display:none;">
+      <div class="check">✓</div>
+      <h3 id="success-title">Checked In</h3>
+      <p id="success-sub">Recorded successfully.</p>
+      <button class="btn" id="success-continue-btn" style="max-width:280px;margin:18px auto 0;">Done</button>
+    </div>
+
+    <div class="card" id="history-card" style="display:none;">
+      <label style="margin-bottom:10px;">Today's History</label>
+      <div id="history-list"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ---------- shared data store with the main website (same-origin localStorage) ----------
+function getWorkers(){
+  try{ return JSON.parse(localStorage.getItem('peo_workers') || '{}'); }
+  catch(e){ return {}; }
+}
+function saveWorkers(w){ localStorage.setItem('peo_workers', JSON.stringify(w)); }
+
+function getAttendance(){
+  try{ return JSON.parse(localStorage.getItem('peo_attendance') || '[]'); }
+  catch(e){ return []; }
+}
+function saveAttendance(a){ localStorage.setItem('peo_attendance', JSON.stringify(a)); }
+
+function isValidCP(v){ return /^09\d{9}$/.test(v); }
+function initials(name, surname){
+  return ((name||'')[0]||'').toUpperCase() + ((surname||'')[0]||'').toUpperCase();
+}
+
+let currentCP = null;
+let currentGeo = null;      // "lat, lng" string or null
+let capturedPhoto = null;   // data URL
+let cameraStream = null;
+
+const lookupBanner = document.getElementById('lookup-banner');
+const cpInput = document.getElementById('cp-input');
+
+function bannerMsg(el, type, msg){
+  el.textContent = msg;
+  el.className = 'banner show ' + type;
+}
+
+// ---------- STEP 1: look up worker by CP number ----------
+document.getElementById('lookup-btn').addEventListener('click', ()=>{
+  document.getElementById('err-cp').textContent = '';
+  lookupBanner.className = 'banner';
+  const cp = cpInput.value.trim();
+
+  if(!cp || !isValidCP(cp)){
+    document.getElementById('err-cp').textContent = 'Enter a valid 11-digit CP number starting with 09.';
+    return;
+  }
+
+  const workers = getWorkers();
+  const w = workers[cp];
+  if(!w){
+    bannerMsg(lookupBanner, 'error', 'This CP number is not registered yet. Please register on the main website first.');
+    return;
+  }
+
+  currentCP = cp;
+  loadProfile(w);
+});
+
+function loadProfile(w){
+  document.getElementById('step-lookup').style.display = 'none';
+  document.getElementById('step-success').style.display = 'none';
+  document.getElementById('step-profile').style.display = 'block';
+
+  document.getElementById('p-avatar').textContent = initials(w.name, w.surname);
+  document.getElementById('p-name').textContent = w.name + ' ' + w.surname;
+  document.getElementById('p-project').textContent = w.cp + ' — ' + w.project;
+
+  const pill = document.getElementById('p-status');
+  pill.className = 'status-pill ' + (w.status || 'none');
+  pill.textContent = w.status === 'in' ? 'Checked In' : (w.status === 'out' ? 'Checked Out' : 'Not Checked In');
+
+  document.getElementById('checkin-btn').disabled = (w.status === 'in');
+  document.getElementById('checkout-btn').disabled = (w.status !== 'in');
+
+  resetCamera();
+  startGeolocation();
+  renderHistory();
+}
+
+// ---------- CAMERA ----------
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const capturedImg = document.getElementById('captured-img');
+
+function resetCamera(){
+  capturedPhoto = null;
+  video.style.display = 'block';
+  canvas.style.display = 'none';
+  capturedImg.style.display = 'none';
+  document.getElementById('cam-controls-initial').style.display = 'flex';
+  document.getElementById('cam-controls-live').style.display = 'none';
+  document.getElementById('cam-controls-review').style.display = 'none';
+  document.getElementById('err-cam').textContent = '';
+  stopCameraStream();
+}
+
+function stopCameraStream(){
+  if(cameraStream){
+    cameraStream.getTracks().forEach(t=>t.stop());
+    cameraStream = null;
+  }
+}
+
+document.getElementById('start-cam-btn').addEventListener('click', async ()=>{
+  document.getElementById('err-cam').textContent = '';
+  try{
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user' }, audio:false });
+    video.srcObject = cameraStream;
+    document.getElementById('cam-controls-initial').style.display = 'none';
+    document.getElementById('cam-controls-live').style.display = 'flex';
+  }catch(err){
+    document.getElementById('err-cam').textContent = 'Camera access denied or unavailable. Please allow camera permission to check in.';
+  }
+});
+
+document.getElementById('capture-btn').addEventListener('click', ()=>{
+  canvas.width = video.videoWidth || 480;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1); // mirror selfie
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  capturedPhoto = canvas.toDataURL('image/jpeg', 0.7);
+
+  capturedImg.src = capturedPhoto;
+  video.style.display = 'none';
+  capturedImg.style.display = 'block';
+  document.getElementById('cam-controls-live').style.display = 'none';
+  document.getElementById('cam-controls-review').style.display = 'flex';
+  stopCameraStream();
+});
+
+document.getElementById('retake-btn').addEventListener('click', ()=>{
+  resetCamera();
+});
+
+// ---------- GEOLOCATION ----------
+function startGeolocation(){
+  currentGeo = null;
+  const dot = document.getElementById('geo-dot');
+  const text = document.getElementById('geo-text');
+  dot.className = 'dot';
+  text.textContent = 'Getting your location…';
+
+  if(!navigator.geolocation){
+    dot.className = 'dot bad';
+    text.textContent = 'Location not supported on this device.';
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      currentGeo = pos.coords.latitude.toFixed(5) + ', ' + pos.coords.longitude.toFixed(5);
+      dot.className = 'dot ok';
+      text.textContent = 'Location captured: ' + currentGeo;
+    },
+    err=>{
+      dot.className = 'dot bad';
+      text.textContent = 'Location unavailable (permission denied or timed out). You can still check in.';
+    },
+    { enableHighAccuracy:true, timeout:8000 }
+  );
+}
+
+// ---------- CHECK IN / CHECK OUT ----------
+function submitAttendance(type){
+  document.getElementById('err-submit').textContent = '';
+  if(!capturedPhoto){
+    document.getElementById('err-submit').textContent = 'Please capture a selfie before ' + (type==='in'?'checking in':'checking out') + '.';
+    return;
+  }
+
+  const workers = getWorkers();
+  const w = workers[currentCP];
+  if(!w) return;
+
+  const record = {
+    cp: currentCP,
+    type: type,
+    photo: capturedPhoto,
+    geo: currentGeo,
+    timestamp: new Date().toISOString()
+  };
+
+  const attendance = getAttendance();
+  attendance.push(record);
+  saveAttendance(attendance);
+
+  w.status = type;
+  w.lastPhoto = capturedPhoto;
+  w.lastTimestamp = record.timestamp;
+  w.lastGeo = currentGeo;
+  workers[currentCP] = w;
+  saveWorkers(workers);
+
+  showSuccess(type);
+}
+
+document.getElementById('checkin-btn').addEventListener('click', ()=> submitAttendance('in'));
+document.getElementById('checkout-btn').addEventListener('click', ()=> submitAttendance('out'));
+
+function showSuccess(type){
+  document.getElementById('step-profile').style.display = 'none';
+  document.getElementById('step-success').style.display = 'block';
+  document.getElementById('success-title').textContent = type === 'in' ? 'Checked In!' : 'Checked Out!';
+  document.getElementById('success-sub').textContent = 'Your selfie, time, and location were recorded. The admin can now see this on the main website.';
+}
+
+document.getElementById('success-continue-btn').addEventListener('click', ()=>{
+  const workers = getWorkers();
+  const w = workers[currentCP];
+  if(w) loadProfile(w);
+  document.getElementById('step-success').style.display = 'none';
+  document.getElementById('step-profile').style.display = 'block';
+});
+
+document.getElementById('switch-cp-btn').addEventListener('click', ()=>{
+  stopCameraStream();
+  currentCP = null;
+  cpInput.value = '';
+  document.getElementById('step-profile').style.display = 'none';
+  document.getElementById('step-success').style.display = 'none';
+  document.getElementById('history-card').style.display = 'none';
+  document.getElementById('step-lookup').style.display = 'block';
+});
+
+// ---------- HISTORY (today, for this CP number) ----------
+function renderHistory(){
+  const historyCard = document.getElementById('history-card');
+  const list = document.getElementById('history-list');
+  const attendance = getAttendance().filter(r=> r.cp === currentCP);
+  const today = new Date().toDateString();
+  const todays = attendance.filter(r=> new Date(r.timestamp).toDateString() === today)
+                            .sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));
+
+  if(todays.length === 0){
+    historyCard.style.display = 'none';
+    return;
+  }
+  historyCard.style.display = 'block';
+  list.innerHTML = todays.map(r=>{
+    return '<div class="history-item">'
+      + '<span class="h-dot '+r.type+'"></span>'
+      + '<span class="h-text">'+(r.type==='in'?'Checked In':'Checked Out')+(r.geo?' • location captured':' • no location')+'</span>'
+      + '<span class="h-time">'+new Date(r.timestamp).toLocaleTimeString()+'</span>'
+      + '</div>';
+  }).join('');
+}
+</script>
+</body>
+</html>

@@ -149,14 +149,19 @@
 
   <main>
 
-    <!-- STEP 1: CP NUMBER LOOKUP -->
+    <!-- STEP 1: EMAIL LOOKUP -->
     <div class="card" id="step-lookup">
       <div class="banner" id="lookup-banner"></div>
-      <label for="cp-input">Enter your CP Number</label>
-      <input type="text" id="cp-input" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11">
-      <div class="errmsg" id="err-cp"></div>
-      <div class="hint">Not registered yet? Register on the main website first (Sign In screen → "Register with your CP number"), then come back here.</div>
-      <button class="btn" id="lookup-btn">Continue</button>
+      <label for="email-input">Email</label>
+      <input type="text" id="email-input" placeholder="you@peoisabela.gov.ph" inputmode="email" autocapitalize="off">
+      <div class="errmsg" id="err-email"></div>
+
+      <label for="password-input" style="margin-top:14px;">Password</label>
+      <input type="password" id="password-input" placeholder="Your password">
+      <div class="errmsg" id="err-password"></div>
+
+      <div class="hint">Not registered yet? Register on the main website first (Sign In screen → "Register with your email"), then come back here to log in.</div>
+      <button class="btn" id="lookup-btn">Log In</button>
       <div class="center-link">
         <a href="index.html">← Register on main website</a>
       </div>
@@ -198,7 +203,7 @@
       </div>
       <div class="errmsg" id="err-submit"></div>
 
-      <button class="btn secondary" id="switch-cp-btn" type="button">Switch CP Number</button>
+      <button class="btn secondary" id="switch-cp-btn" type="button">Switch Email</button>
     </div>
 
     <!-- STEP 3: SUCCESS -->
@@ -231,43 +236,54 @@ function getAttendance(){
 }
 function saveAttendance(a){ localStorage.setItem('peo_attendance', JSON.stringify(a)); }
 
-function isValidCP(v){ return /^09\d{9}$/.test(v); }
+function isValidEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
 function initials(name, surname){
   return ((name||'')[0]||'').toUpperCase() + ((surname||'')[0]||'').toUpperCase();
 }
 
-let currentCP = null;
+let currentEmail = null;
 let currentGeo = null;      // "lat, lng" string or null
 let capturedPhoto = null;   // data URL
 let cameraStream = null;
 
 const lookupBanner = document.getElementById('lookup-banner');
-const cpInput = document.getElementById('cp-input');
+const emailInput = document.getElementById('email-input');
 
 function bannerMsg(el, type, msg){
   el.textContent = msg;
   el.className = 'banner show ' + type;
 }
 
-// ---------- STEP 1: look up worker by CP number ----------
+// ---------- STEP 1: look up worker by email ----------
 document.getElementById('lookup-btn').addEventListener('click', ()=>{
-  document.getElementById('err-cp').textContent = '';
+  document.getElementById('err-email').textContent = '';
+  document.getElementById('err-password').textContent = '';
   lookupBanner.className = 'banner';
-  const cp = cpInput.value.trim();
+  const email = emailInput.value.trim().toLowerCase();
+  const password = document.getElementById('password-input').value;
 
-  if(!cp || !isValidCP(cp)){
-    document.getElementById('err-cp').textContent = 'Enter a valid 11-digit CP number starting with 09.';
+  if(!email || !isValidEmail(email)){
+    document.getElementById('err-email').textContent = 'Enter a valid email address.';
+    return;
+  }
+  if(!password){
+    document.getElementById('err-password').textContent = 'Enter your password.';
     return;
   }
 
   const workers = getWorkers();
-  const w = workers[cp];
+  const w = workers[email];
   if(!w){
-    bannerMsg(lookupBanner, 'error', 'This CP number is not registered yet. Please register on the main website first.');
+    bannerMsg(lookupBanner, 'error', 'This email is not registered yet. Please register on the main website first.');
+    return;
+  }
+  if(w.password !== password){
+    document.getElementById('err-password').textContent = 'Incorrect password.';
     return;
   }
 
-  currentCP = cp;
+  currentEmail = email;
+  document.getElementById('password-input').value = '';
   loadProfile(w);
 });
 
@@ -278,7 +294,7 @@ function loadProfile(w){
 
   document.getElementById('p-avatar').textContent = initials(w.name, w.surname);
   document.getElementById('p-name').textContent = w.name + ' ' + w.surname;
-  document.getElementById('p-project').textContent = w.cp + ' — ' + w.project;
+  document.getElementById('p-project').textContent = w.email + ' — ' + w.project;
 
   const pill = document.getElementById('p-status');
   pill.className = 'status-pill ' + (w.status || 'none');
@@ -328,14 +344,43 @@ document.getElementById('start-cam-btn').addEventListener('click', async ()=>{
   }
 });
 
+function stampPhoto(ctx, width, height){
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'2-digit' });
+  const timeStr = now.toLocaleTimeString('en-PH', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  const geoStr = currentGeo ? currentGeo : 'Location unavailable';
+
+  const fontSize = Math.max(12, Math.round(width * 0.032));
+  const pad = Math.round(fontSize * 0.6);
+  const lineH = Math.round(fontSize * 1.35);
+  const barH = lineH * 3 + pad * 2;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, height - barH, width, barH);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '700 ' + fontSize + 'px Arial, sans-serif';
+  ctx.textBaseline = 'top';
+  let ty = height - barH + pad;
+  ctx.fillText('📍 ' + geoStr, pad, ty); ty += lineH;
+  ctx.fillText('📅 ' + dateStr, pad, ty); ty += lineH;
+  ctx.fillText('🕒 ' + timeStr, pad, ty);
+}
+
 document.getElementById('capture-btn').addEventListener('click', ()=>{
   canvas.width = video.videoWidth || 480;
   canvas.height = video.videoHeight || 480;
   const ctx = canvas.getContext('2d');
+  ctx.save();
   ctx.translate(canvas.width, 0);
   ctx.scale(-1, 1); // mirror selfie
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  capturedPhoto = canvas.toDataURL('image/jpeg', 0.7);
+  ctx.restore();
+
+  // burn location, date, and time directly onto the photo
+  stampPhoto(ctx, canvas.width, canvas.height);
+
+  capturedPhoto = canvas.toDataURL('image/jpeg', 0.85);
 
   capturedImg.src = capturedPhoto;
   video.style.display = 'none';
@@ -385,11 +430,11 @@ function submitAttendance(type){
   }
 
   const workers = getWorkers();
-  const w = workers[currentCP];
+  const w = workers[currentEmail];
   if(!w) return;
 
   const record = {
-    cp: currentCP,
+    email: currentEmail,
     type: type,
     photo: capturedPhoto,
     geo: currentGeo,
@@ -404,7 +449,7 @@ function submitAttendance(type){
   w.lastPhoto = capturedPhoto;
   w.lastTimestamp = record.timestamp;
   w.lastGeo = currentGeo;
-  workers[currentCP] = w;
+  workers[currentEmail] = w;
   saveWorkers(workers);
 
   showSuccess(type);
@@ -422,7 +467,7 @@ function showSuccess(type){
 
 document.getElementById('success-continue-btn').addEventListener('click', ()=>{
   const workers = getWorkers();
-  const w = workers[currentCP];
+  const w = workers[currentEmail];
   if(w) loadProfile(w);
   document.getElementById('step-success').style.display = 'none';
   document.getElementById('step-profile').style.display = 'block';
@@ -430,19 +475,19 @@ document.getElementById('success-continue-btn').addEventListener('click', ()=>{
 
 document.getElementById('switch-cp-btn').addEventListener('click', ()=>{
   stopCameraStream();
-  currentCP = null;
-  cpInput.value = '';
+  currentEmail = null;
+  emailInput.value = '';
   document.getElementById('step-profile').style.display = 'none';
   document.getElementById('step-success').style.display = 'none';
   document.getElementById('history-card').style.display = 'none';
   document.getElementById('step-lookup').style.display = 'block';
 });
 
-// ---------- HISTORY (today, for this CP number) ----------
+// ---------- HISTORY (today, for this email) ----------
 function renderHistory(){
   const historyCard = document.getElementById('history-card');
   const list = document.getElementById('history-list');
-  const attendance = getAttendance().filter(r=> r.cp === currentCP);
+  const attendance = getAttendance().filter(r=> r.email === currentEmail);
   const today = new Date().toDateString();
   const todays = attendance.filter(r=> new Date(r.timestamp).toDateString() === today)
                             .sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp));

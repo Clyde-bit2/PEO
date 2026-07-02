@@ -1,4 +1,6 @@
 
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -6,13 +8,13 @@
 <title>Provincial Engineering Office — Sign In</title>
 <style>
   :root{
-    --navy:#16324F;
-    --steel:#3C6997;
-    --slate:#7C8DA6;
+    --navy:#1B7A43;
+    --steel:#2FA85F;
+    --slate:#2E6B45;
     --paper:#F3F1EC;
     --accent:#C8702A;
     --error:#B3261E;
-    --ok:#1E7A4C;
+    --ok:#2E9E4F;
     --wf-bg-image: linear-gradient(135deg, #b9b9b9 0%, #d6d6d6 50%, #a8a8a8 100%);
   }
   *{box-sizing:border-box;}
@@ -25,7 +27,7 @@
   #authScreen{
     background:var(--navy);
     background-image:
-      linear-gradient(160deg, var(--navy) 0%, #0E2236 100%);
+      linear-gradient(160deg, var(--navy) 0%, #2FA85F 100%);
     min-height:100vh;
     display:flex;
     align-items:center;
@@ -43,8 +45,8 @@
   }
   .brand .eyebrow{
     letter-spacing:3px;
-    font-size:11px;
-    color:var(--slate);
+    font-size:20px;
+    color:#DCEFE1;
     text-transform:uppercase;
   }
   .brand h1{
@@ -93,6 +95,7 @@
   }
   label:first-of-type{margin-top:0;}
   .field{position:relative;}
+  .field input{ padding-right:38px; }
   input{
     width:100%;
     padding:10px 12px;
@@ -106,19 +109,23 @@
   }
   input:focus{
     border-color:var(--steel);
-    box-shadow:0 0 0 3px rgba(60,105,151,.18);
+    box-shadow:0 0 0 3px rgba(27,122,67,.18);
     background:#fff;
   }
   input.invalid{border-color:var(--error);}
   .toggle-eye{
     position:absolute;
-    right:10px; top:50%; transform:translateY(-50%);
+    right:8px; top:50%; transform:translateY(-50%);
     cursor:pointer;
-    font-size:14px;
     color:var(--slate);
     user-select:none;
     background:none; border:none;
+    display:flex; align-items:center; justify-content:center;
+    width:26px; height:26px; padding:0;
+    z-index:2;
   }
+  .toggle-eye svg{ width:18px; height:18px; display:block; pointer-events:none; }
+  .toggle-eye:hover{ color:var(--navy); }
   .errmsg{
     font-size:12px;
     color:var(--error);
@@ -204,6 +211,8 @@
     color:#fff;
     padding:14px 28px;
     display:flex;
+    flex-wrap:wrap;
+    row-gap:10px;
     align-items:center;
     justify-content:space-between;
   }
@@ -215,7 +224,7 @@
   }
   .topbar .logo-block .badge img{ width:100%; height:100%; object-fit:cover; }
   .topbar h2{ margin:0; font-size:18px; letter-spacing:.3px; }
-  .topbar nav{ display:flex; gap:22px; font-size:13.5px; }
+  .topbar nav{ display:flex; flex-wrap:wrap; gap:14px 18px; font-size:13px; }
   .topbar nav a{ color:#cdd8e4; text-decoration:none; cursor:pointer; padding-bottom:3px; border-bottom:2px solid transparent; }
   .topbar nav a:hover{ color:#fff; }
   .topbar nav a.active{ color:#fff; border-bottom-color:var(--accent); font-weight:600; }
@@ -224,7 +233,7 @@
     background:transparent; border:1px solid #4a6580; color:#fff;
     padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12.5px;
   }
-  .topbar .user-area button:hover{ background:#1f3f5e; }
+  .topbar .user-area button:hover{ background:#1f5e2d; }
 
   .dash-layout{ display:flex; min-height:calc(100vh - 60px); }
   .sidebar{
@@ -284,17 +293,34 @@
   .stat-row{ display:flex; gap:10px; margin-bottom:10px; }
   .stat-card{
     flex:1;
+    min-width:0;
     background:var(--navy);
     color:#fff;
     border-radius:8px;
-    padding:14px 10px;
+    padding:12px 4px;
     text-align:center;
   }
-  .stat-card .num{ font-size:20px; font-weight:800; }
-  .stat-card .lbl{ font-size:11px; color:#cdd8e4; margin-top:2px; }
+  .stat-card .num{ font-size:16px; font-weight:800; white-space:nowrap; }
+  .stat-card .lbl{ font-size:10px; color:#cdd8e4; margin-top:2px; }
   .gantt-row{ display:none; }
   .notif-bars{ display:flex; align-items:flex-end; gap:6px; height:90px; }
   .notif-bars div{ flex:1; background:var(--steel); border-radius:2px; }
+
+  /* ---- notification list (replaces bar-only notification panel) ---- */
+  .notif-list{ display:flex; flex-direction:column; gap:10px; }
+  .notif-item{ display:flex; align-items:center; gap:10px; }
+  .notif-avatar{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:12px; font-weight:700;
+  }
+  .notif-avatar.admin{ background:var(--navy); }
+  .notif-avatar.engineer{ background:var(--steel); }
+  .notif-avatar.system{ background:var(--accent); }
+  .notif-body{ flex:1; min-width:0; }
+  .notif-body strong{ display:block; font-size:12.5px; color:var(--navy); }
+  .notif-body span{ display:block; font-size:11.5px; color:#666; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .notif-time{ font-size:10.5px; color:var(--slate); flex-shrink:0; white-space:nowrap; }
 
   .project-list-box{ background:#fff; border:1px solid #E3DFD5; border-radius:10px; padding:16px; margin-bottom:16px; }
   .project-list-box h4{ margin:0 0 10px; font-size:14px; color:var(--navy); }
@@ -343,7 +369,7 @@
   .home-hero::before{
     content:"";
     position:absolute; inset:0;
-    background:linear-gradient(90deg, rgba(22,50,79,.88) 0%, rgba(22,50,79,.55) 55%, rgba(22,50,79,.2) 100%);
+    background:linear-gradient(90deg, rgba(19, 148, 69, 0.88) 0%, rgba(10,58,32,.55) 55%, rgba(10,58,32,.2) 100%);
   }
   .home-hero-text{ position:relative; z-index:1; padding:22px 26px; color:#fff; max-width:480px; }
   .home-hero-text h3{ margin:0 0 6px; font-size:20px; }
@@ -388,7 +414,7 @@
   .monitoring-hero::before{
     content:"";
     position:absolute; inset:0;
-    background:linear-gradient(90deg, rgba(22,50,79,.88) 0%, rgba(22,50,79,.55) 60%, rgba(22,50,79,.25) 100%);
+    background:linear-gradient(90deg, rgba(41, 175, 74, 0.88) 0%, rgba(10,58,32,.55) 60%, rgba(10,58,32,.25) 100%);
   }
   .monitoring-hero-text{ position:relative; z-index:1; padding:20px 26px; color:#fff; max-width:480px; }
   .monitoring-hero-text h3{ margin:0 0 6px; font-size:19px; }
@@ -463,6 +489,28 @@
   }
   .dash-view label:first-of-type{ margin-top:0; }
   .dash-view .btn{ width:auto; padding:10px 22px; }
+  /* ---- attendance / GPS tracking ---- */
+  .attendance-box{ background:#fff; border:1px solid #E3DFD5; border-radius:10px; padding:16px; margin-bottom:16px; }
+  .attendance-box h4{ margin:0 0 4px; font-size:14px; color:var(--navy); }
+  .attendance-sub{ font-size:11.5px; color:var(--slate); margin-bottom:12px; }
+  .att-row{
+    display:flex; align-items:center; gap:12px;
+    padding:10px 10px; border-radius:6px; margin-bottom:6px;
+  }
+  .att-row:nth-child(odd){ background:var(--paper); }
+  .att-avatar{
+    width:34px; height:34px; border-radius:50%; background:var(--navy); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;
+  }
+  .att-info{ flex:1; min-width:0; }
+  .att-info strong{ display:block; font-size:13px; color:var(--navy); }
+  .att-info span{ display:block; font-size:11.5px; color:#666; }
+  .att-project{ font-size:11.5px; color:#555; min-width:150px; }
+  .geo-badge{ font-size:11px; padding:3px 10px; border-radius:12px; font-weight:600; white-space:nowrap; }
+  .geo-badge.onsite{ background:#E5F4EB; color:var(--ok); }
+  .geo-badge.offsite{ background:#FBEAE9; color:var(--error); }
+  .att-time{ font-size:10.5px; color:var(--slate); min-width:70px; text-align:right; }
+
   /* ---- workforce panel: real gears/blueprint photo background ---- */
   .wf-blueprint-panel{
     position:relative;
@@ -497,7 +545,9 @@
     <h1>Provincial Engineering Office</h1>
   </div>
 
-   <div class="card">
+  <div class="card">
+
+  
 
     <!-- LOGIN PANEL -->
     <div class="panel active" id="panel-login">
@@ -513,7 +563,7 @@
         <label for="login-password">Password</label>
         <div class="field">
           <input type="password" id="login-password" placeholder="Password" autocomplete="current-password">
-          <button type="button" class="toggle-eye" data-target="login-password">show</button>
+          <button type="button" class="toggle-eye" data-target="login-password" aria-label="Show password"></button>
         </div>
         <div class="errmsg" id="err-login-password"></div>
 
@@ -550,7 +600,7 @@
         <label for="reg-password">Create Password</label>
         <div class="field">
           <input type="password" id="reg-password" placeholder="At least 8 characters">
-          <button type="button" class="toggle-eye" data-target="reg-password">show</button>
+          <button type="button" class="toggle-eye" data-target="reg-password" aria-label="Show password"></button>
         </div>
         <div class="strength"><div class="strength-bar" id="strength-bar"></div></div>
         <div class="errmsg" id="err-reg-password"></div>
@@ -558,7 +608,7 @@
         <label for="reg-confirm">Confirm Password</label>
         <div class="field">
           <input type="password" id="reg-confirm" placeholder="Re-enter password">
-          <button type="button" class="toggle-eye" data-target="reg-confirm">show</button>
+          <button type="button" class="toggle-eye" data-target="reg-confirm" aria-label="Show password"></button>
         </div>
         <div class="errmsg" id="err-reg-confirm"></div>
 
@@ -616,6 +666,7 @@
       <a data-view="dashboard">Home</a>
       <a data-view="monitoring">Current Projects</a>
       <a data-view="progress">Provincial Progress</a>
+      <a data-view="about">About PEO</a>
       <a data-view="contact">Contact</a>
     </nav>
     <div class="user-area">
@@ -649,42 +700,39 @@
           </div>
         </div>
 
-        <div class="grid-top">
-          <div class="panel-box">
-            <h4>Isabela Province Map (Barangays)</h4>
-            <div class="map-box">
-              <iframe
-                src="https://www.openstreetmap.org/export/embed.html?bbox=121.65%2C16.85%2C121.85%2C17.05&layer=mapnik"
-                loading="lazy"
-                title="Isabela Province Map">
-              </iframe>
-              <div class="map-caption">OpenStreetMap — zoom in to see barangay boundaries</div>
-            </div>
-          </div>
-
+        <div class="grid-top" style="grid-template-columns:1fr 1fr;">
           <div class="panel-box">
             <h4>Overview</h4>
             <div class="stat-row">
               <div class="stat-card"><div class="num">30</div><div class="lbl">Project</div></div>
-            </div>
-            <div class="stat-row">
               <div class="stat-card"><div class="num">100M</div><div class="lbl">Budget</div></div>
-            </div>
-            <div class="stat-row">
               <div class="stat-card"><div class="num">310</div><div class="lbl">Worker</div></div>
             </div>
           </div>
 
           <div class="panel-box">
-            <h4>Notification</h4>
-            <div class="notif-bars">
-              <div style="height:30%"></div>
-              <div style="height:55%"></div>
-              <div style="height:40%"></div>
-              <div style="height:80%"></div>
-              <div style="height:65%"></div>
-              <div style="height:45%"></div>
-              <div style="height:90%"></div>
+            <h4>Notifications</h4>
+            <div class="notif-list">
+              <div class="notif-item">
+                <div class="notif-avatar admin">A</div>
+                <div class="notif-body"><strong>Admin</strong><span>Approved budget for Bridge Project A</span></div>
+                <div class="notif-time">2m ago</div>
+              </div>
+              <div class="notif-item">
+                <div class="notif-avatar engineer">E</div>
+                <div class="notif-body"><strong>Engineer</strong><span>Updated status — Road Project B</span></div>
+                <div class="notif-time">14m ago</div>
+              </div>
+              <div class="notif-item">
+                <div class="notif-avatar engineer">E</div>
+                <div class="notif-body"><strong>Engineer</strong><span>Uploaded site photos — Building C</span></div>
+                <div class="notif-time">1h ago</div>
+              </div>
+              <div class="notif-item">
+                <div class="notif-avatar system">!</div>
+                <div class="notif-body"><strong>System</strong><span>Delay flagged — Building Project C</span></div>
+                <div class="notif-time">3h ago</div>
+              </div>
             </div>
           </div>
         </div>
@@ -848,9 +896,9 @@
         <div class="grid-top">
           <div class="panel-box">
             <h4>Analytical Reports</h4>
-            <div class="chart-subtitle">Resource Allocation</div>
+            <div class="chart-subtitle">Total Resource Allocation</div>
             <div class="bar-chart" style="grid-template-columns:1fr;">
-              <div class="bar-col" style="height:160px;"><div class="bar" style="height:80%;background:#A3C9A0;width:60%;margin:0 auto;"></div><span>Total</span></div>
+              <div class="bar-col"><div class="bar" style="height:80%;background:var(--steel);width:40%;margin:0 auto;"></div><span>Total</span></div>
             </div>
           </div>
 
@@ -872,6 +920,41 @@
               <div class="rte-item"><span class="rte-dot" style="background:var(--accent);"></span>Material delivery — Road Project B <em>14 min ago</em></div>
               <div class="rte-item"><span class="rte-dot" style="background:var(--error);"></span>Delay reported — Building Project C <em>1 hr ago</em></div>
               <div class="rte-item"><span class="rte-dot" style="background:var(--steel);"></span>Inspection scheduled — Drainage Project D <em>3 hrs ago</em></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="attendance-box">
+          <h4>Engineer Attendance — GPS Tracking</h4>
+          <div class="attendance-sub">Engineers are tracked using their registered email. Status shows whether their current GPS location matches their assigned project site.</div>
+          <div id="attendance-list">
+            <div class="att-row" data-project="Bridge Project A">
+              <div class="att-avatar">JD</div>
+              <div class="att-info"><strong>Engr. Juan Dela Cruz</strong><span>juan.delacruz@peoisabela.gov.ph</span></div>
+              <div class="att-project">Bridge Project A — Cauayan City</div>
+              <span class="geo-badge onsite">On Site</span>
+              <div class="att-time">1 min ago</div>
+            </div>
+            <div class="att-row" data-project="Road Project B">
+              <div class="att-avatar">MR</div>
+              <div class="att-info"><strong>Engr. Maria Reyes</strong><span>maria.reyes@peoisabela.gov.ph</span></div>
+              <div class="att-project">Road Project B — Ilagan City</div>
+              <span class="geo-badge onsite">On Site</span>
+              <div class="att-time">3 min ago</div>
+            </div>
+            <div class="att-row" data-project="Building Project C">
+              <div class="att-avatar">RS</div>
+              <div class="att-info"><strong>Engr. Ramon Santos</strong><span>ramon.santos@peoisabela.gov.ph</span></div>
+              <div class="att-project">Building Project C — Santiago City</div>
+              <span class="geo-badge offsite">Off Site</span>
+              <div class="att-time">9 min ago</div>
+            </div>
+            <div class="att-row" data-project="Drainage Project D">
+              <div class="att-avatar">AB</div>
+              <div class="att-info"><strong>Engr. Ana Bautista</strong><span>ana.bautista@peoisabela.gov.ph</span></div>
+              <div class="att-project">Drainage Project D — Roxas, Isabela</div>
+              <span class="geo-badge onsite">On Site</span>
+              <div class="att-time">5 min ago</div>
             </div>
           </div>
         </div>
@@ -979,7 +1062,7 @@
 
         <div class="panel-box" style="margin-top:16px;">
           <h4 style="font-size:15px;color:var(--accent);">🎯 Vision</h4>
-          <p style="font-size:13.5px;color:#444;line-height:1.8;margin:0;">
+          <p style="font-size:13.5px;color:#78d80b;line-height:1.8;margin:0;">
             Enhancement of the capacity to respond to call of duty and mission by keeping abreast of applicable new and recent discoveries in engineering, computer-aided design and construction and equipment technologies thus assuring a dependable and competent workforce that can be relied upon in the field of road, bridge and building construction and maintenance as well as in equipment operation and management.
           </p>
         </div>
@@ -1080,13 +1163,22 @@ function setError(id, msg){
   if(input) input.classList.toggle('invalid', !!msg);
 }
 
-// ---------- show/hide password ----------
+// ---------- show/hide password (eye icon) ----------
+const EYE_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.6 20.6 0 0 1 5.06-5.94M9.9 4.24A10.6 10.6 0 0 1 12 4c7 0 11 7 11 7a20.6 20.6 0 0 1-2.16 3.19M14.12 14.12a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+
+function setEyeIcon(btn, visible){
+  btn.innerHTML = visible ? EYE_OFF : EYE_OPEN;
+  btn.setAttribute('aria-label', visible ? 'Hide password' : 'Show password');
+}
+
 document.querySelectorAll('.toggle-eye').forEach(btn=>{
+  const input = document.getElementById(btn.dataset.target);
+  setEyeIcon(btn, false);
   btn.addEventListener('click', () => {
-    const input = document.getElementById(btn.dataset.target);
-    const hidden = input.type === 'password';
-    input.type = hidden ? 'text' : 'password';
-    btn.textContent = hidden ? 'hide' : 'show';
+    const nowVisible = input.type === 'password';
+    input.type = nowVisible ? 'text' : 'password';
+    setEyeIcon(btn, nowVisible);
   });
 });
 

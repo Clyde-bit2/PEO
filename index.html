@@ -618,13 +618,13 @@
       </form>
 
       <div class="center-link">Don't have an account? <a data-tab="register">Sign up</a></div>
-      <div class="center-link">Field worker? <a data-tab="worker">Register with your CP number</a> &nbsp;|&nbsp; <a href="mobile-app.html" target="_blank">Open Check-In App</a></div>
+      <div class="center-link">Field worker / Engineer? <a data-tab="worker">Register with your email</a> &nbsp;|&nbsp; <a href="mobile-app.html" target="_blank">Open Check-In App</a></div>
     </div>
 
-    <!-- WORKER (FIELD STAFF) REGISTER PANEL -->
+    <!-- WORKER (FIELD STAFF / ENGINEER) REGISTER PANEL -->
     <div class="panel" id="panel-worker">
-      <h3 style="margin:0 0 4px;color:var(--navy);">Field Worker Registration</h3>
-      <div class="worker-note">📷 After registering here, use the <strong>Attendance App</strong> on your phone to check in/out with your camera. Admin will see your attendance in real time using your CP number.</div>
+      <h3 style="margin:0 0 4px;color:var(--navy);">Field Worker / Engineer Registration</h3>
+      <div class="worker-note">📷 Register here using your email — this also becomes your login for the main website. Use the same email in the <strong>Attendance App</strong> on your phone to check in/out with your camera. Admin will see your attendance in real time.</div>
 
       <div class="banner" id="worker-banner"></div>
 
@@ -637,10 +637,17 @@
         <input type="text" id="w-surname" placeholder="Dela Cruz">
         <div class="errmsg" id="err-w-surname"></div>
 
-        <label for="w-cp">CP Number</label>
-        <input type="text" id="w-cp" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11">
-        <div class="cp-hint">11 digits, starts with 09. This is how the mobile app will identify you.</div>
-        <div class="errmsg" id="err-w-cp"></div>
+        <label for="w-email">Email</label>
+        <input type="text" id="w-email" placeholder="you@peoisabela.gov.ph">
+        <div class="cp-hint">This is how the mobile app and admin will identify you, and how you'll log in to the main website.</div>
+        <div class="errmsg" id="err-w-email"></div>
+
+        <label for="w-password">Create Password</label>
+        <div class="field">
+          <input type="password" id="w-password" placeholder="At least 8 characters">
+          <button type="button" class="toggle-eye" data-target="w-password" aria-label="Show password"></button>
+        </div>
+        <div class="errmsg" id="err-w-password"></div>
 
         <label for="w-project">Assigned Project</label>
         <select id="w-project">
@@ -1043,13 +1050,13 @@
       <div class="dash-view" id="view-attendance" style="display:none;">
 
         <div class="mobile-link-box">
-          📱 <strong>Field workers register</strong> here on the main website (Sign In screen → "Register with your CP number"), then use the <strong>Attendance App</strong> on their phone to check in/out with a camera selfie + location. Records below update automatically. Mobile app link: <code>mobile-app.html</code>
+          📱 <strong>Field workers register</strong> here on the main website (Sign In screen → "Register with your email"), then use the <strong>Attendance App</strong> on their phone to check in/out with a camera selfie + location. Records below update automatically. Mobile app link: <code>mobile-app.html</code>
         </div>
 
         <div class="panel-box" style="margin-bottom:16px;">
           <h4>Registered Field Workers</h4>
           <div class="att-toolbar">
-            <input type="text" id="att-search" placeholder="Search by name or CP number...">
+            <input type="text" id="att-search" placeholder="Search by name or email...">
             <button class="btn secondary" id="att-refresh-btn" type="button">Refresh</button>
           </div>
           <div id="worker-registry-list"></div>
@@ -1390,42 +1397,41 @@ function getAttendance(){
   catch(e){ return []; }
 }
 
-function isValidCP(v){
-  return /^09\d{9}$/.test(v);
-}
-
 function initials(name, surname){
   return ((name||'')[0]||'').toUpperCase() + ((surname||'')[0]||'').toUpperCase();
 }
 
-// ---------- WORKER REGISTRATION ----------
+// ---------- WORKER / ENGINEER REGISTRATION (email-based; also creates a login account) ----------
 document.getElementById('workerForm').addEventListener('submit', e=>{
   e.preventDefault();
   clearBanners();
-  ['err-w-name','err-w-surname','err-w-cp'].forEach(id=>setError(id,''));
+  ['err-w-name','err-w-surname','err-w-email','err-w-password'].forEach(id=>setError(id,''));
 
   const name = document.getElementById('w-name').value.trim();
   const surname = document.getElementById('w-surname').value.trim();
-  const cp = document.getElementById('w-cp').value.trim();
+  const email = document.getElementById('w-email').value.trim();
+  const password = document.getElementById('w-password').value;
   const project = document.getElementById('w-project').value;
 
   let valid = true;
   if(!name){ setError('err-w-name','First name is required.'); valid = false; }
   if(!surname){ setError('err-w-surname','Surname is required.'); valid = false; }
 
-  if(!cp){ setError('err-w-cp','CP number is required.'); valid = false; }
-  else if(!isValidCP(cp)){ setError('err-w-cp','Enter a valid 11-digit number starting with 09.'); valid = false; }
+  if(!email){ setError('err-w-email','Email is required.'); valid = false; }
+  else if(!isValidEmail(email)){ setError('err-w-email','Enter a valid email address.'); valid = false; }
+  else if(users[email.toLowerCase()] || getWorkers()[email.toLowerCase()]){ setError('err-w-email','An account with this email already exists.'); valid = false; }
+
+  if(!password){ setError('err-w-password','Password is required.'); valid = false; }
+  else if(password.length < 8){ setError('err-w-password','Password must be at least 8 characters.'); valid = false; }
 
   if(!valid) return;
 
-  const workers = getWorkers();
-  if(workers[cp] && workers[cp].name){
-    setError('err-w-cp','This CP number is already registered.');
-    return;
-  }
+  const key = email.toLowerCase();
 
-  workers[cp] = {
-    cp, name, surname, project,
+  // creates a worker/attendance record (for the mobile check-in app + admin Attendance tab)
+  const workers = getWorkers();
+  workers[key] = {
+    email: key, name, surname, project, password,
     registeredAt: new Date().toISOString(),
     status: 'none',      // none | in | out
     lastPhoto: null,
@@ -1434,9 +1440,12 @@ document.getElementById('workerForm').addEventListener('submit', e=>{
   };
   saveWorkers(workers);
 
-  banner('worker-banner','success','Registered! You can now use the Attendance App on your phone to check in using CP ' + cp + '.');
+  // also creates a login account so they can sign in to the main website
+  users[key] = { name, surname, password };
+
+  banner('worker-banner','success','Registered! You can now sign in to the main website, and use the Attendance App on your phone to check in with ' + key + '.');
   document.getElementById('workerForm').reset();
-  setTimeout(()=> showPanel('login'), 1600);
+  setTimeout(()=> showPanel('login'), 1800);
 });
 
 // ---------- FORGOT PASSWORD ----------
@@ -1526,7 +1535,7 @@ function switchView(view){
   if(view === 'attendance') renderAttendanceView();
 }
 
-// ---------- ATTENDANCE VIEW RENDERING (reads workers/check-ins by CP number) ----------
+// ---------- ATTENDANCE VIEW RENDERING (reads workers/check-ins by email) ----------
 function statusLabel(status){
   if(status === 'in') return { cls:'in', text:'Checked In' };
   if(status === 'out') return { cls:'out', text:'Checked Out' };
@@ -1541,11 +1550,11 @@ function renderAttendanceView(){
   const registryEl = document.getElementById('worker-registry-list');
   const entries = Object.values(workers).filter(w=>{
     if(!q) return true;
-    return (w.name+' '+w.surname).toLowerCase().includes(q) || w.cp.includes(q);
+    return (w.name+' '+w.surname).toLowerCase().includes(q) || w.email.includes(q);
   });
 
   if(entries.length === 0){
-    registryEl.innerHTML = '<div class="empty-state">No registered field workers yet. They can register on the Sign In screen → "Register with your CP number".</div>';
+    registryEl.innerHTML = '<div class="empty-state">No registered field workers yet. They can register on the Sign In screen → "Register with your email".</div>';
   } else {
     registryEl.innerHTML = entries.map(w=>{
       const st = statusLabel(w.status);
@@ -1556,7 +1565,7 @@ function renderAttendanceView(){
       const geo = w.lastGeo ? ' • ' + w.lastGeo : '';
       return '<div class="worker-card">'
         + '<div class="worker-photo">'+photo+'</div>'
-        + '<div class="worker-info"><strong>'+w.name+' '+w.surname+'</strong><span>'+w.cp+' — '+w.project+'</span></div>'
+        + '<div class="worker-info"><strong>'+w.name+' '+w.surname+'</strong><span>'+w.email+' — '+w.project+'</span></div>'
         + '<div class="worker-meta"><span class="status '+st.cls+'">'+st.text+'</span><div class="stamp">'+stamp+geo+'</div></div>'
         + '</div>';
     }).join('');
@@ -1568,12 +1577,12 @@ function renderAttendanceView(){
     logEl.innerHTML = '<div class="empty-state">No check-ins recorded yet from the mobile app.</div>';
   } else {
     logEl.innerHTML = sorted.map(r=>{
-      const w = workers[r.cp] || {};
+      const w = workers[r.email] || {};
       const badgeCls = r.geo ? 'onsite' : 'offsite';
       const badgeText = r.geo ? 'Location Captured' : 'No Location';
       return '<div class="att-row">'
         + '<div class="worker-photo" style="width:34px;height:34px;">'+(r.photo ? '<img src="'+r.photo+'" alt="">' : initials(w.name, w.surname))+'</div>'
-        + '<div class="att-info"><strong>'+(w.name?w.name+' '+w.surname:r.cp)+'</strong><span>'+r.cp+' — '+(r.type==='in'?'Checked In':'Checked Out')+'</span></div>'
+        + '<div class="att-info"><strong>'+(w.name?w.name+' '+w.surname:r.email)+'</strong><span>'+r.email+' — '+(r.type==='in'?'Checked In':'Checked Out')+'</span></div>'
         + '<div class="att-project">'+(w.project||'—')+'</div>'
         + '<span class="geo-badge '+badgeCls+'">'+badgeText+'</span>'
         + '<div class="att-time">'+new Date(r.timestamp).toLocaleTimeString()+'</div>'

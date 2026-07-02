@@ -1,6 +1,7 @@
 
 
 
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -534,6 +535,45 @@
   .wf-blueprint-panel input{ background:rgba(255,255,255,.92); }
   .wf-blueprint-panel .plist-item{ background:rgba(255,255,255,.85); }
   .wf-blueprint-panel .plist-item:nth-child(odd){ background:rgba(243,241,236,.85); }
+
+  /* ---- worker (field staff) registration panel ---- */
+  .worker-note{
+    font-size:12px; background:#EAF6EE; border:1px solid #CDE9D5; color:var(--slate);
+    padding:9px 11px; border-radius:6px; margin-bottom:14px; line-height:1.5;
+  }
+  .cp-hint{ font-size:11px; color:var(--slate); margin-top:4px; }
+
+  /* ---- attendance (mobile check-in) admin view ---- */
+  .att-toolbar{ display:flex; gap:10px; align-items:center; margin-bottom:14px; flex-wrap:wrap; }
+  .att-toolbar input[type="text"]{ flex:1; min-width:180px; }
+  .att-toolbar .btn.secondary{ margin-top:0; width:auto; padding:9px 16px; }
+  .mobile-link-box{
+    background:#fff; border:1px dashed var(--steel); border-radius:8px;
+    padding:12px 14px; margin-bottom:16px; font-size:12.5px; color:var(--slate); line-height:1.6;
+  }
+  .mobile-link-box strong{ color:var(--navy); }
+  .mobile-link-box code{ background:var(--paper); padding:2px 6px; border-radius:4px; color:var(--navy); }
+  .worker-card{
+    display:flex; align-items:center; gap:12px;
+    padding:11px 12px; border-radius:8px; margin-bottom:8px; background:var(--paper);
+    border:1px solid #ECE8DE;
+  }
+  .worker-photo{
+    width:44px; height:44px; border-radius:50%; flex-shrink:0; overflow:hidden;
+    background:var(--navy); color:#fff; display:flex; align-items:center; justify-content:center;
+    font-size:13px; font-weight:700;
+  }
+  .worker-photo img{ width:100%; height:100%; object-fit:cover; }
+  .worker-info{ flex:1; min-width:0; }
+  .worker-info strong{ display:block; font-size:13.5px; color:var(--navy); }
+  .worker-info span{ display:block; font-size:11.5px; color:#666; }
+  .worker-meta{ text-align:right; min-width:120px; }
+  .worker-meta .status{ font-size:11px; padding:3px 10px; border-radius:12px; font-weight:600; display:inline-block; }
+  .worker-meta .status.in{ background:#E5F4EB; color:var(--ok); }
+  .worker-meta .status.out{ background:#ECE8DE; color:var(--slate); }
+  .worker-meta .status.none{ background:#FBEAE9; color:var(--error); }
+  .worker-meta .stamp{ font-size:10.5px; color:var(--slate); margin-top:3px; }
+  .empty-state{ text-align:center; padding:30px 10px; color:var(--slate); font-size:13px; }
 </style>
 </head>
 <body>
@@ -578,6 +618,43 @@
       </form>
 
       <div class="center-link">Don't have an account? <a data-tab="register">Sign up</a></div>
+      <div class="center-link">Field worker? <a data-tab="worker">Register with your CP number</a> &nbsp;|&nbsp; <a href="mobile-app.html" target="_blank">Open Check-In App</a></div>
+    </div>
+
+    <!-- WORKER (FIELD STAFF) REGISTER PANEL -->
+    <div class="panel" id="panel-worker">
+      <h3 style="margin:0 0 4px;color:var(--navy);">Field Worker Registration</h3>
+      <div class="worker-note">📷 After registering here, use the <strong>Attendance App</strong> on your phone to check in/out with your camera. Admin will see your attendance in real time using your CP number.</div>
+
+      <div class="banner" id="worker-banner"></div>
+
+      <form id="workerForm" novalidate>
+        <label for="w-name">First Name</label>
+        <input type="text" id="w-name" placeholder="Juan">
+        <div class="errmsg" id="err-w-name"></div>
+
+        <label for="w-surname">Surname</label>
+        <input type="text" id="w-surname" placeholder="Dela Cruz">
+        <div class="errmsg" id="err-w-surname"></div>
+
+        <label for="w-cp">CP Number</label>
+        <input type="text" id="w-cp" placeholder="09XXXXXXXXX" inputmode="numeric" maxlength="11">
+        <div class="cp-hint">11 digits, starts with 09. This is how the mobile app will identify you.</div>
+        <div class="errmsg" id="err-w-cp"></div>
+
+        <label for="w-project">Assigned Project</label>
+        <select id="w-project">
+          <option>Bridge Project A</option>
+          <option>Road Project B</option>
+          <option>Building Project C</option>
+          <option>Drainage Project D</option>
+        </select>
+
+        <button type="submit" class="btn">Register</button>
+      </form>
+
+      <div class="center-link">Already registered? <a href="mobile-app.html" target="_blank">Go to Check-In App</a></div>
+      <div class="center-link"><a data-tab="login">Back to sign in</a></div>
     </div>
 
     <!-- REGISTER PANEL -->
@@ -681,6 +758,7 @@
       <a class="active" data-view="dashboard">📊 Dashboard</a>
       <a data-view="monitoring">📁 Project Monitoring</a>
       <a data-view="workforce">👷 Work Force</a>
+      <a data-view="attendance">📷 Attendance</a>
       <a data-view="report">📈 Report</a>
       <a data-view="settings">⚙️ Settings</a>
     </div>
@@ -961,6 +1039,30 @@
 
       </div>
 
+      <!-- ===== ATTENDANCE (MOBILE CHECK-IN) VIEW ===== -->
+      <div class="dash-view" id="view-attendance" style="display:none;">
+
+        <div class="mobile-link-box">
+          📱 <strong>Field workers register</strong> here on the main website (Sign In screen → "Register with your CP number"), then use the <strong>Attendance App</strong> on their phone to check in/out with a camera selfie + location. Records below update automatically. Mobile app link: <code>mobile-app.html</code>
+        </div>
+
+        <div class="panel-box" style="margin-bottom:16px;">
+          <h4>Registered Field Workers</h4>
+          <div class="att-toolbar">
+            <input type="text" id="att-search" placeholder="Search by name or CP number...">
+            <button class="btn secondary" id="att-refresh-btn" type="button">Refresh</button>
+          </div>
+          <div id="worker-registry-list"></div>
+        </div>
+
+        <div class="attendance-box">
+          <h4>Live Attendance Log — Camera Check-In</h4>
+          <div class="attendance-sub">Most recent check-ins/check-outs captured from the mobile app, newest first.</div>
+          <div id="mobile-attendance-list"></div>
+        </div>
+
+      </div>
+
       <!-- ===== REPORT VIEW ===== -->
       <div class="dash-view" id="view-report" style="display:none;">
         <div class="panel-box">
@@ -1061,8 +1163,8 @@
         </div>
 
         <div class="panel-box" style="margin-top:16px;">
-          <h4 style="font-size:15px;color:var(--accent);">🎯 Vision</h4>
-          <p style="font-size:13.5px;color:#78d80b;line-height:1.8;margin:0;">
+          <h4 style="font-size:15px;color:var(--accent);">Vision</h4>
+          <p style="font-size:13.5px;color:#444;line-height:1.8;margin:0;">
             Enhancement of the capacity to respond to call of duty and mission by keeping abreast of applicable new and recent discoveries in engineering, computer-aided design and construction and equipment technologies thus assuring a dependable and competent workforce that can be relied upon in the field of road, bridge and building construction and maintenance as well as in equipment operation and management.
           </p>
         </div>
@@ -1268,6 +1370,75 @@ document.getElementById('registerForm').addEventListener('submit', e=>{
   setTimeout(()=> showPanel('login'), 1200);
 });
 
+// ---------- FIELD WORKER "DATABASE" ----------
+// NOTE: peo_workers / peo_attendance intentionally use localStorage (not the
+// in-memory `users` object above) because this data must be shared between
+// this main website and the companion mobile-app.html check-in page.
+// Limitation: browsers isolate storage per-origin. This works when both files
+// are hosted on the same real web address, or opened from the same folder in
+// most desktop browsers. Opening each file directly via file:// on some
+// browsers (or on two different phones/computers) will NOT share data —
+// for real multi-device deployment this needs a small backend/database.
+function getWorkers(){
+  try{ return JSON.parse(localStorage.getItem('peo_workers') || '{}'); }
+  catch(e){ return {}; }
+}
+function saveWorkers(w){ localStorage.setItem('peo_workers', JSON.stringify(w)); }
+
+function getAttendance(){
+  try{ return JSON.parse(localStorage.getItem('peo_attendance') || '[]'); }
+  catch(e){ return []; }
+}
+
+function isValidCP(v){
+  return /^09\d{9}$/.test(v);
+}
+
+function initials(name, surname){
+  return ((name||'')[0]||'').toUpperCase() + ((surname||'')[0]||'').toUpperCase();
+}
+
+// ---------- WORKER REGISTRATION ----------
+document.getElementById('workerForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  clearBanners();
+  ['err-w-name','err-w-surname','err-w-cp'].forEach(id=>setError(id,''));
+
+  const name = document.getElementById('w-name').value.trim();
+  const surname = document.getElementById('w-surname').value.trim();
+  const cp = document.getElementById('w-cp').value.trim();
+  const project = document.getElementById('w-project').value;
+
+  let valid = true;
+  if(!name){ setError('err-w-name','First name is required.'); valid = false; }
+  if(!surname){ setError('err-w-surname','Surname is required.'); valid = false; }
+
+  if(!cp){ setError('err-w-cp','CP number is required.'); valid = false; }
+  else if(!isValidCP(cp)){ setError('err-w-cp','Enter a valid 11-digit number starting with 09.'); valid = false; }
+
+  if(!valid) return;
+
+  const workers = getWorkers();
+  if(workers[cp] && workers[cp].name){
+    setError('err-w-cp','This CP number is already registered.');
+    return;
+  }
+
+  workers[cp] = {
+    cp, name, surname, project,
+    registeredAt: new Date().toISOString(),
+    status: 'none',      // none | in | out
+    lastPhoto: null,
+    lastTimestamp: null,
+    lastGeo: null
+  };
+  saveWorkers(workers);
+
+  banner('worker-banner','success','Registered! You can now use the Attendance App on your phone to check in using CP ' + cp + '.');
+  document.getElementById('workerForm').reset();
+  setTimeout(()=> showPanel('login'), 1600);
+});
+
 // ---------- FORGOT PASSWORD ----------
 document.getElementById('forgotForm').addEventListener('submit', e=>{
   e.preventDefault();
@@ -1337,6 +1508,7 @@ const titles = {
   dashboard: 'Dashboard',
   monitoring: 'Project Monitoring',
   workforce: 'Work Force',
+  attendance: 'Field Worker Attendance',
   report: 'Report',
   settings: 'Settings',
   progress: 'Provincial Progress',
@@ -1351,7 +1523,77 @@ function switchView(view){
   dashViews.forEach(v=>v.style.display = 'none');
   document.getElementById('view-' + view).style.display = 'block';
   viewTitle.textContent = titles[view] || view;
+  if(view === 'attendance') renderAttendanceView();
 }
+
+// ---------- ATTENDANCE VIEW RENDERING (reads workers/check-ins by CP number) ----------
+function statusLabel(status){
+  if(status === 'in') return { cls:'in', text:'Checked In' };
+  if(status === 'out') return { cls:'out', text:'Checked Out' };
+  return { cls:'none', text:'Not Checked In' };
+}
+
+function renderAttendanceView(){
+  const workers = getWorkers();
+  const attendance = getAttendance();
+  const q = (document.getElementById('att-search').value || '').trim().toLowerCase();
+
+  const registryEl = document.getElementById('worker-registry-list');
+  const entries = Object.values(workers).filter(w=>{
+    if(!q) return true;
+    return (w.name+' '+w.surname).toLowerCase().includes(q) || w.cp.includes(q);
+  });
+
+  if(entries.length === 0){
+    registryEl.innerHTML = '<div class="empty-state">No registered field workers yet. They can register on the Sign In screen → "Register with your CP number".</div>';
+  } else {
+    registryEl.innerHTML = entries.map(w=>{
+      const st = statusLabel(w.status);
+      const photo = w.lastPhoto
+        ? '<img src="'+w.lastPhoto+'" alt="">'
+        : initials(w.name, w.surname);
+      const stamp = w.lastTimestamp ? new Date(w.lastTimestamp).toLocaleString() : 'No check-in yet';
+      const geo = w.lastGeo ? ' • ' + w.lastGeo : '';
+      return '<div class="worker-card">'
+        + '<div class="worker-photo">'+photo+'</div>'
+        + '<div class="worker-info"><strong>'+w.name+' '+w.surname+'</strong><span>'+w.cp+' — '+w.project+'</span></div>'
+        + '<div class="worker-meta"><span class="status '+st.cls+'">'+st.text+'</span><div class="stamp">'+stamp+geo+'</div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  const logEl = document.getElementById('mobile-attendance-list');
+  const sorted = attendance.slice().sort((a,b)=> new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 25);
+  if(sorted.length === 0){
+    logEl.innerHTML = '<div class="empty-state">No check-ins recorded yet from the mobile app.</div>';
+  } else {
+    logEl.innerHTML = sorted.map(r=>{
+      const w = workers[r.cp] || {};
+      const badgeCls = r.geo ? 'onsite' : 'offsite';
+      const badgeText = r.geo ? 'Location Captured' : 'No Location';
+      return '<div class="att-row">'
+        + '<div class="worker-photo" style="width:34px;height:34px;">'+(r.photo ? '<img src="'+r.photo+'" alt="">' : initials(w.name, w.surname))+'</div>'
+        + '<div class="att-info"><strong>'+(w.name?w.name+' '+w.surname:r.cp)+'</strong><span>'+r.cp+' — '+(r.type==='in'?'Checked In':'Checked Out')+'</span></div>'
+        + '<div class="att-project">'+(w.project||'—')+'</div>'
+        + '<span class="geo-badge '+badgeCls+'">'+badgeText+'</span>'
+        + '<div class="att-time">'+new Date(r.timestamp).toLocaleTimeString()+'</div>'
+        + '</div>';
+    }).join('');
+  }
+}
+
+const attSearch = document.getElementById('att-search');
+if(attSearch) attSearch.addEventListener('input', renderAttendanceView);
+const attRefreshBtn = document.getElementById('att-refresh-btn');
+if(attRefreshBtn) attRefreshBtn.addEventListener('click', renderAttendanceView);
+
+// auto-refresh if the mobile app (open in another tab, same origin) writes new data
+window.addEventListener('storage', (e)=>{
+  if(e.key === 'peo_workers' || e.key === 'peo_attendance'){
+    const activeView = document.querySelector('.sidebar a.active');
+    if(activeView && activeView.dataset.view === 'attendance') renderAttendanceView();
+  }
+});
 
 navLinks.forEach(link=>{
   link.addEventListener('click', ()=> switchView(link.dataset.view));

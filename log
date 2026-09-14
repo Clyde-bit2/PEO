@@ -1,0 +1,701 @@
+<?php
+session_start();
+
+// Enable Error Reporting para sa local debugging sa XAMPP
+error_reporting(E_ALL);
+ini_set('display_errors', 0); // Nakasara sa UI para hindi masira ang layout
+
+$popup_type = "";
+$popup_title = "";
+$popup_message = "";
+$redirect_now = false;
+$show_reset_form = false;
+$reset_mobile = "";
+
+/* MYSQLI DATABASE CONNECTION CONFIG (XAMPP DEFAULT) */
+$host     = "sql204.infinityfree.com";
+$username = "if0_42565018";
+$password = "PeoIsabela123";
+$dbname   = "if0_42565018_test"; // Siguraduhing na-create ang database na ito sa phpMyAdmin
+
+$conn = new mysqli($host, $username, $password, $dbname);
+
+// Check Connection
+if ($conn->connect_error) {
+    $conn = null;
+} else {
+    $conn->set_charset("utf8");
+}
+
+/* PROCESS FORMS (LOGIN, SIGNUP, FORGOT PASSWORD, RESET PASSWORD) */
+if ($_SERVER["REQUEST_METHOD"] == "POST" && $conn) {
+
+    // 1. SIGN UP ACTION
+    if (isset($_POST['action']) && $_POST['action'] == 'signup') {
+        $id_num       = trim($_POST['signup_id'] ?? '');
+        $email        = strtolower(trim($_POST['signup_email'] ?? ''));
+        $mobile       = trim($_POST['signup_mobile'] ?? ''); 
+        $username_reg = trim($_POST['signup_username'] ?? '');
+        $position     = trim($_POST['signup_position'] ?? '');
+        $district     = trim($_POST['signup_district'] ?? '');
+        $pass_input   = trim($_POST['signup_password'] ?? '');
+        $pass_confirm = trim($_POST['signup_confirm_password'] ?? '');
+
+        if (!empty($id_num) && !empty($email) && !empty($mobile) && !empty($username_reg) && !empty($position) && !empty($district) && !empty($pass_input) && !empty($pass_confirm)) {
+            
+            if ($pass_input !== $pass_confirm) {
+                $popup_type = "error";
+                $popup_title = "Password Mismatch";
+                $popup_message = "The create password and confirm password fields do not match.";
+            } else {
+                // Check kung may umiiral nang email, ID number, o mobile number
+                $stmt = $conn->prepare("SELECT id FROM peosign WHERE LOWER(email) = ? OR id = ? OR mobile_number = ?");
+                $stmt->bind_param("sss", $email, $id_num, $mobile);
+                $stmt->execute();
+                $result = $stmt->get_result();
+
+                if ($result->num_rows > 0) {
+                    $popup_type = "error";
+                    $popup_title = "Account Exists";
+                    $popup_message = "This Email Address, ID Number, or Mobile Number is already registered.";
+                } else {
+                    $hashed_password = password_hash($pass_input, PASSWORD_DEFAULT);
+                    
+                    // Insert bagong user sa peosign table
+                    $insert_stmt = $conn->prepare("INSERT INTO peosign (id, email, mobile_number, username, position, district, password, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')");
+                    $insert_stmt->bind_param("sssssss", $id_num, $email, $mobile, $username_reg, $position, $district, $hashed_password);
+
+                    if ($insert_stmt->execute()) {
+                        $popup_type = "success";
+                        $popup_title = "Registration Successful";
+                        $popup_message = "Your account has been created, but it requires Admin approval before you can log in.";
+                    } else {
+                        $popup_type = "error";
+                        $popup_title = "Database Error";
+                        $popup_message = "Failed to register. Please ensure your peosign table has all required columns.";
+                    }
+                    $insert_stmt->close();
+                }
+                $stmt->close();
+            }
+        } else {
+            $popup_type = "warning";
+            $popup_title = "Incomplete Fields";
+            $popup_message = "Please fill in all registration fields.";
+        }
+    } 
+    
+    // 2. LOGIN ACTION
+    elseif (isset($_POST['action']) && $_POST['action'] == 'login') {
+        $email      = strtolower(trim($_POST['email'] ?? ''));
+        $pass_input = trim($_POST['password'] ?? '');
+
+        if (!empty($email) && !empty($pass_input)) {
+            $stmt = $conn->prepare("SELECT * FROM peosign WHERE LOWER(email) = ?");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            $account = $result->fetch_assoc();
+
+            if ($account) {
+                $is_valid = password_verify($pass_input, $account['password']) || ($pass_input === $account['password']);
+
+                if ($is_valid) {
+                    $status = $account['status'] ?? 'approved'; 
+                    
+                    if ($status === 'pending' || $status === 'inactive') {
+                        $popup_type = "error";
+                        $popup_title = "Access Denied";
+                        $popup_message = "Your account is pending approval by the Provincial Engineering Office administrator.";
+                    } else {
+                        $_SESSION['user_id'] = $account['id'];
+                        $popup_type = "success";
+                        $popup_title = "Welcome!";
+                        $popup_message = "Login successful. Redirecting to dashboard...";
+                        $redirect_now = true;
+                    }
+                } else {
+                    $popup_type = "error";
+                    $popup_title = "Login Failed";
+                    $popup_message = "Wrong password. Please try again.";
+                }
+            } else {
+                $popup_type = "error";
+                $popup_title = "Account Not Found";
+                $popup_message = "Email not found. Please check your email address.";
+            }
+            $stmt->close();
+        } else {
+            $popup_type = "warning";
+            $popup_title = "Incomplete Fields";
+            $popup_message = "Please fill in both Email and Password fields.";
+        }
+    }
+
+    // 3. FORGOT PASSWORD REQUEST
+    elseif (isset($_POST['action']) && $_POST['action'] == 'forgot_password') {
+        $mobile = trim($_POST['forgot_mobile'] ?? '');
+
+        if (!empty($mobile)) {
+            $stmt = $conn->prepare("SELECT id FROM peosign WHERE mobile_number = ?");
+            $stmt->bind_param("s", $mobile);
+            $stmt->execute();
+            $result = $stmt->get_result();
+
+            if ($result->num_rows > 0) {
+                $otp = rand(100000, 999999);
+                
+                $update = $conn->prepare("UPDATE peosign SET otp_code = ?, forgot_pass_notif = 1 WHERE mobile_number = ?");
+                $update->bind_param("is", $otp, $mobile);
+                $update->execute();
+                $update->close();
+
+                $popup_type = "success";
+                $popup_title = "OTP Sent!";
+                $popup_message = "An OTP has been sent. The Admin has also been notified. (SIMULATED OTP: $otp)";
+                
+                $show_reset_form = true;
+                $reset_mobile = $mobile;
+            } else {
+                $popup_type = "error";
+                $popup_title = "Number Not Found";
+                $popup_message = "This mobile number is not registered in our system.";
+            }
+            $stmt->close();
+        }
+    }
+
+    // 4. RESET PASSWORD VERIFICATION
+    elseif (isset($_POST['action']) && $_POST['action'] == 'reset_password') {
+        $mobile    = trim($_POST['reset_mobile'] ?? '');
+        $otp_input = trim($_POST['reset_otp'] ?? '');
+        $new_pass  = trim($_POST['new_password'] ?? '');
+
+        if (!empty($mobile) && !empty($otp_input) && !empty($new_pass)) {
+            $stmt = $conn->prepare("SELECT id FROM peosign WHERE mobile_number = ? AND otp_code = ?");
+            $stmt->bind_param("ss", $mobile, $otp_input);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows > 0) {
+                $hashed_password = password_hash($new_pass, PASSWORD_DEFAULT);
+                
+                $update = $conn->prepare("UPDATE peosign SET password = ?, otp_code = NULL, forgot_pass_notif = 0 WHERE mobile_number = ?");
+                $update->bind_param("ss", $hashed_password, $mobile);
+                $update->execute();
+                $update->close();
+
+                $popup_type = "success";
+                $popup_title = "Success";
+                $popup_message = "Your password has been reset successfully. You can now login.";
+            } else {
+                $popup_type = "error";
+                $popup_title = "Invalid OTP";
+                $popup_message = "The OTP you entered is incorrect.";
+                $show_reset_form = true;
+                $reset_mobile = $mobile;
+            }
+            $stmt->close();
+        }
+    }
+}
+?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Provincial Engineering Office</title>
+
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%2317552d' stroke='%23ffffff' stroke-width='4'/%3E%3Cpath d='M30 75 L50 25 L70 75 Z' fill='none' stroke='%23ffffff' stroke-width='6' stroke-linejoin='round'/%3E%3Ccircle cx='50' cy='45' r='8' fill='%23ffffff'/%3E%3Cpath d='M20 80 L80 80' stroke='%23ffffff' stroke-width='6' stroke-linecap='round'/%3E%3C/svg%3E">
+
+<style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    overflow: hidden;
+}
+
+.main-wrapper {
+    display: grid;
+    grid-template-columns: 70% 30%;
+    height: 100vh;
+    width: 100vw;
+}
+
+.background-side {
+    background-color: #17552d;
+    background-image: linear-gradient(135deg, rgba(20,90,50,.94), rgba(10,55,30,.96));
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.bg-image-container {
+    width: 100%;
+    height: 100%;
+    flex-grow: 1; 
+    min-height: 400px;
+    background-image: url('login.png?v=1');
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.login-side {
+    background-color: #f8f9fa;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 15px;
+    overflow-y: auto;
+}
+
+.container {
+    width: 100%;
+    max-width: 420px; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.emblem-logo {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto 10px auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #1d7d40;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.emblem-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.15);
+    display: block;
+}
+
+.card {
+    width: 100%;
+    background: white;
+    padding: 25px;
+    border-radius: 10px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.15);
+    border-top: 4px solid #1d7d40;
+    text-align: left;
+}
+
+.contact-admin {
+    background: #eef8f1;
+    border: 1px solid #cdeada;
+}
+
+label {
+    display: block;
+    text-align: left;
+    margin-bottom: 5px;
+    color: #24783f;
+    font-weight: bold;
+    font-size: 13px;
+}
+
+.input-group {
+    position: relative;
+    margin-bottom: 14px;
+    width: 100%;
+}
+
+.input-group .icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    left: 12px;
+    width: 16px;
+    height: 16px;
+    fill: #888;
+    pointer-events: none;
+}
+
+.input-group input, .input-group select {
+    width: 100%;
+    padding: 11px 38px 11px 38px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    outline: none;
+    background: #fff;
+    transition: border-color 0.2s;
+}
+
+.input-group input:focus, .input-group select:focus {
+    border-color: #1d7d40;
+}
+
+.toggle-password {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 12px;
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    fill: #888;
+    transition: fill 0.2s;
+}
+
+.toggle-password:hover {
+    fill: #1d7d40;
+}
+
+.row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 13px;
+    color: #333;
+}
+
+.row a {
+    text-decoration: none;
+    color: #1d8f49;
+}
+
+button[type="submit"] {
+    width: 100%;
+    padding: 11px;
+    font-size: 16px;
+    font-weight: bold;
+    background: #1d7d40;
+    border: none;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+button[type="submit"]:hover {
+    background: #176633;
+}
+
+p {
+    margin-top: 15px;
+    color: #444;
+    font-size: 13px;
+}
+
+p a {
+    text-decoration: none;
+    color: #1d8f49;
+    font-weight: bold;
+}
+
+.modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.modal-box {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    max-width: 400px;
+    width: 90%;
+    text-align: center;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}
+
+.modal-box h2 {
+    color: #333;
+    margin-bottom: 12px;
+}
+
+.modal-box p {
+    color: #666;
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 16px;
+}
+
+.modal-btn {
+    background: #1d7d40;
+    color: white;
+    border: none;
+    padding: 12px 25px;
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.modal-btn:hover {
+    background: #176633;
+}
+
+@media (max-width: 900px) {
+    html, body {
+        overflow: auto;
+    }
+    .main-wrapper {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+    .background-side {
+        height: 300px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<div class="main-wrapper">
+    <div class="background-side">
+        <div class="bg-image-container"></div>
+    </div>
+
+    <div class="login-side">
+        <div class="container">
+            <div class="emblem-logo">
+                <img src="peo.jpeg" alt="PEO Logo" onerror="this.src='peo-logo.jpeg'; this.onerror=function(){this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Ccircle cx=\'50\' cy=\'50\' r=\'48\' fill=\'%231d7d40\'/%3E%3Cpath d=\'M30 75 L50 25 L70 75 Z\' fill=\'none\' stroke=\'white\' stroke-width=\'6\'/%3E%3C/svg%3E';}">
+            </div>
+            
+            <h3 style="letter-spacing: 2px; font-weight: 300; margin-bottom: 3px; color: #17552d; font-size: 12px;">PROVINCE OF ISABELA</h3>
+            <h1 style="margin-bottom: 15px; font-size: 18px; color: #17552d;">Provincial Engineering Office</h1>
+
+            <div class="card">
+                <!-- LOGIN FORM -->
+                <form id="loginForm" method="POST" action="index.php">
+                    <input type="hidden" name="action" value="login">
+                    
+                    <label>Email</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <input type="email" name="email" placeholder="you@peoisabela.gov.ph" required>
+                    </div>
+
+                    <label>Password</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                        <input type="password" id="login_password" name="password" placeholder="Password" required>
+                        <svg class="toggle-password" onclick="togglePasswordVisibility('login_password', this)" viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </div>
+                    
+                    <div class="row">
+                        <span></span>
+                        <a href="javascript:void(0);" onclick="openForgotPassword()">Forgot Password?</a>
+                    </div>
+
+                    <button type="submit">Sign In</button>
+
+                    <p class="contact-admin" style="padding:8px; border-radius:6px; text-align:left; font-size:12px;">
+                        Don't have an account? <a href="javascript:void(0);" onclick="toggleForms('signupForm')" style="color: #1d8f49; font-weight: bold; text-decoration: underline; cursor: pointer;">Sign up here</a>
+                    </p>
+                </form>
+
+                <!-- SIGN UP FORM -->
+                <form id="signupForm" method="POST" action="index.php" style="display: none;">
+                    <input type="hidden" name="action" value="signup">
+                    
+                    <h2 style="color: #1d7d40; margin-bottom: 12px; font-size: 18px;">Create Account</h2>
+                    
+                    <label>ID Number</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M21 3H3c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h18v14zM5 10h9v2H5zm0-3h9v2H5zm0 6h9v2H5zm11-6h3v8h-3z"/></svg>
+                        <input type="text" name="signup_id" placeholder="Enter ID Number" required>
+                    </div>
+
+                    <label>Email Address</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <input type="email" name="signup_email" placeholder="you@peoisabela.gov.ph" required>
+                    </div>
+
+                    <label>Mobile Number (For OTP)</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 19H7V4h10v16zm-5-1c.83 0 1.5-.67 1.5-1.5S12.83 17 12 17s-1.5.67-1.5 1.5.67 1.5 1.5 1.5z"/></svg>
+                        <input type="text" name="signup_mobile" placeholder="09xxxxxxxxx" required maxlength="15">
+                    </div>
+
+                    <label>Username</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                        <input type="text" name="signup_username" placeholder="Enter Username" required>
+                    </div>
+
+                    <label>Position</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H7c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.03-.42 1.98-1.07 2.75z"/></svg>
+                        <input type="text" name="signup_position" placeholder="e.g. Engineer II" required>
+                    </div>
+
+                    <label>District</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+                        <select name="signup_district" required style="padding-left: 38px;">
+                            <option value="" disabled selected>Select District</option>
+                            <option value="District 1">District 1</option>
+                            <option value="District 2">District 2</option>
+                            <option value="District 3">District 3</option>
+                            <option value="District 4">District 4</option>
+                            <option value="District 5">District 5</option>
+                            <option value="District 6">District 6</option>
+                        </select>
+                    </div>
+
+                    <label>Create Password</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                        <input type="password" id="signup_password" name="signup_password" placeholder="Create Password" required>
+                        <svg class="toggle-password" onclick="togglePasswordVisibility('signup_password', this)" viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </div>
+
+                    <label>Confirm Password</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                        <input type="password" id="signup_confirm_password" name="signup_confirm_password" placeholder="Confirm Password" required>
+                        <svg class="toggle-password" onclick="togglePasswordVisibility('signup_confirm_password', this)" viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </div>
+
+                    <button type="submit">Register Account</button>
+
+                    <p style="text-align: center; font-size:12px;">
+                        Already have an account? <a href="javascript:void(0);" onclick="toggleForms('loginForm')" style="color: #1d8f49; font-weight: bold; cursor: pointer;">Sign in here</a>
+                    </p>
+                </form>
+
+                <!-- FORGOT PASSWORD FORM -->
+                <form id="forgotForm" method="POST" action="index.php" style="display: none;">
+                    <input type="hidden" name="action" value="forgot_password">
+                    
+                    <h2 style="color: #1d7d40; margin-bottom: 12px; font-size: 18px;">Forgot Password</h2>
+                    <p style="margin-top: 0; margin-bottom: 15px; font-size: 12px; color: #666;">Enter your registered mobile number to receive an OTP. The system admin will also be notified.</p>
+                    
+                    <label>Mobile Number</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M17 1H7c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-2-2-2zm0 19H7V4h10v16zm-5-1c.83 0 1.5-.67 1.5-1.5S12.83 17 12 17s-1.5.67-1.5 1.5.67 1.5 1.5 1.5z"/></svg>
+                        <input type="text" name="forgot_mobile" placeholder="09xxxxxxxxx" required>
+                    </div>
+
+                    <button type="submit">Send OTP</button>
+
+                    <p style="text-align: center; font-size:12px;">
+                        Remembered your password? <a href="javascript:void(0);" onclick="toggleForms('loginForm')" style="color: #1d8f49; font-weight: bold; cursor: pointer;">Back to Login</a>
+                    </p>
+                </form>
+
+                <!-- RESET PASSWORD FORM -->
+                <form id="resetForm" method="POST" action="index.php" style="display: <?php echo $show_reset_form ? 'block' : 'none'; ?>;">
+                    <input type="hidden" name="action" value="reset_password">
+                    <input type="hidden" name="reset_mobile" value="<?php echo htmlspecialchars($reset_mobile); ?>">
+                    
+                    <h2 style="color: #1d7d40; margin-bottom: 12px; font-size: 18px;">Reset Password</h2>
+                    <p style="margin-top: 0; margin-bottom: 15px; font-size: 12px; color: #666;">Enter the 6-digit OTP sent to your number and create a new password.</p>
+                    
+                    <label>OTP Code</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M12 17c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm6-9h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM8.9 6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2H8.9V6z"/></svg>
+                        <input type="text" name="reset_otp" placeholder="Enter 6-digit OTP" required maxlength="6">
+                    </div>
+
+                    <label>New Password</label>
+                    <div class="input-group">
+                        <svg class="icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                        <input type="password" id="new_password" name="new_password" placeholder="Enter New Password" required>
+                        <svg class="toggle-password" onclick="togglePasswordVisibility('new_password', this)" viewBox="0 0 24 24">
+                            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                        </svg>
+                    </div>
+
+                    <button type="submit">Update Password</button>
+
+                    <p style="text-align: center; font-size:12px;">
+                        Cancel reset? <a href="index.php" style="color: #1d8f49; font-weight: bold; cursor: pointer;">Back to Login</a>
+                    </p>
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="customModal" class="modal-overlay">
+    <div class="modal-box">
+        <h2 id="modalTitle"><?php echo htmlspecialchars($popup_title); ?></h2>
+        <p id="modalMessage"><?php echo htmlspecialchars($popup_message); ?></p>
+        <button class="modal-btn" onclick="closeModal()">OK</button>
+    </div>
+</div>
+
+<script>
+<?php if (!empty($popup_title)): ?>
+    document.getElementById('customModal').style.display = 'flex';
+<?php endif; ?>
+
+<?php if ($show_reset_form): ?>
+    document.getElementById('loginForm').style.display = 'none';
+<?php endif; ?>
+
+function closeModal() {
+    document.getElementById('customModal').style.display = 'none';
+    <?php if ($redirect_now): ?>
+        window.location.href = 'DASH.php';
+    <?php endif; ?>
+}
+
+function openForgotPassword() {
+    toggleForms('forgotForm');
+}
+
+function toggleForms(formId) {
+    document.getElementById('loginForm').style.display = 'none';
+    document.getElementById('signupForm').style.display = 'none';
+    document.getElementById('forgotForm').style.display = 'none';
+    document.getElementById('resetForm').style.display = 'none';
+    
+    document.getElementById(formId).style.display = 'block';
+}
+
+function togglePasswordVisibility(fieldId, iconElement) {
+    const passwordInput = document.getElementById(fieldId);
+    if (!passwordInput) return;
+
+    if (passwordInput.type === "password") {
+        passwordInput.type = "text";
+        iconElement.style.fill = "#1d7d40";
+    } else {
+        passwordInput.type = "password";
+        iconElement.style.fill = "#888";
+    }
+}
+</script>
+
+</body>
+</html>

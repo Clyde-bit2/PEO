@@ -1,0 +1,1323 @@
+<?php
+
+session_start();
+
+
+
+/*
+
+ * NEW ATTENDANCE PAGE
+
+ * - Uses the same database as DASH.php
+
+ * - Gets the browser/device's realtime GPS location
+
+ * - Reverse-geocodes GPS to Barangay + Street
+
+ * - NO GPS ACCURACY CHECK
+
+ * - NO DISTRICT SELECTION ON THE ATTENDANCE FORM
+
+ * - Attendance can still be submitted even if location is unavailable
+
+ */
+
+
+
+$host     = "sql204.infinityfree.com";
+
+$dbname   = "if0_42565018_test";
+
+$username = "if0_42565018";
+
+$password = "PeoIsabela123";
+
+try {
+
+    $pdo = new PDO(
+
+        "mysql:host=$host;dbname=$dbname;charset=utf8mb4",
+
+        $username,
+
+        $password,
+
+        [
+
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
+
+        ]
+
+    );
+
+} catch (PDOException $e) {
+
+    die("Database connection failed: " . htmlspecialchars($e->getMessage()));
+
+}
+
+
+
+/* Make sure the attendance table exists. */
+
+$pdo->exec("
+
+    CREATE TABLE IF NOT EXISTS PeoAttendance_clockin (
+
+        id INT AUTO_INCREMENT PRIMARY KEY,
+
+        worker_name VARCHAR(255) NOT NULL,
+
+        role VARCHAR(100) DEFAULT '',
+
+        address VARCHAR(500) DEFAULT NULL,
+
+        district VARCHAR(50) DEFAULT 'District I',
+
+        clock_in_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+        status VARCHAR(50) DEFAULT 'Pending'
+
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+");
+
+
+
+/* Add the new location fields if the existing table does not have them. */
+
+$columns = [
+
+    'latitude'  => "DECIMAL(10,8) DEFAULT NULL",
+
+    'longitude' => "DECIMAL(11,8) DEFAULT NULL",
+
+    'barangay'  => "VARCHAR(255) DEFAULT NULL",
+
+    'street'    => "VARCHAR(255) DEFAULT NULL",
+
+    'location_address' => "VARCHAR(1000) DEFAULT NULL"
+
+];
+
+
+
+foreach ($columns as $column => $definition) {
+
+    $check = $pdo->query("SHOW COLUMNS FROM PeoAttendance_clockin LIKE " . $pdo->quote($column));
+
+    if (!$check || $check->rowCount() === 0) {
+
+        $pdo->exec("ALTER TABLE PeoAttendance_clockin ADD COLUMN `$column` $definition");
+
+    }
+
+}
+
+
+
+/* Current logged-in user, if available. */
+
+$user = null;
+
+if (isset($_SESSION['user_id'])) {
+
+    $stmt = $pdo->prepare("SELECT * FROM peosign WHERE id = ?");
+
+    $stmt->execute([$_SESSION['user_id']]);
+
+    $user = $stmt->fetch();
+
+}
+
+
+
+$defaultName = $user['fullname'] ?? $user['full_name'] ?? $user['name'] ?? $user['username'] ?? '';
+
+$defaultRole = $user['role'] ?? '';
+
+
+
+$message = '';
+
+$messageType = 'success';
+
+
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_attendance'])) {
+
+
+
+    $workerName = trim($_POST['worker_name'] ?? '');
+
+    $role = trim($_POST['role'] ?? '');
+
+    // District is intentionally not collected from the attendance form.
+
+    $district = '';
+
+
+
+    $latitude = isset($_POST['latitude']) && $_POST['latitude'] !== ''
+
+        ? (float)$_POST['latitude']
+
+        : null;
+
+
+
+    $longitude = isset($_POST['longitude']) && $_POST['longitude'] !== ''
+
+        ? (float)$_POST['longitude']
+
+        : null;
+
+
+
+    $barangay = trim($_POST['barangay'] ?? '');
+
+    $street = trim($_POST['street'] ?? '');
+
+    $locationAddress = trim($_POST['location_address'] ?? '');
+
+
+
+    /*
+
+     * Address is kept populated for compatibility with the existing
+
+     * DASH.php attendance table, while the new fields keep Barangay/Street
+
+     * separately.
+
+     */
+
+    $addressParts = [];
+
+    if ($street !== '') $addressParts[] = $street;
+
+    if ($barangay !== '') $addressParts[] = 'Barangay ' . $barangay;
+
+    if ($locationAddress !== '' && empty($addressParts)) $addressParts[] = $locationAddress;
+
+    $address = implode(', ', $addressParts);
+
+
+
+    if ($workerName === '') {
+
+        $message = 'Please enter the worker name.';
+
+        $messageType = 'error';
+
+    } else {
+
+        $stmt = $pdo->prepare("
+
+            INSERT INTO PeoAttendance_clockin
+
+            (worker_name, role, address, district, clock_in_time, status,
+
+             latitude, longitude, barangay, street, location_address)
+
+            VALUES (?, ?, ?, ?, NOW(), 'Pending', ?, ?, ?, ?, ?)
+
+        ");
+
+
+
+        $stmt->execute([
+
+            $workerName,
+
+            $role,
+
+            $address,
+
+            $district,
+
+            $latitude,
+
+            $longitude,
+
+            $barangay,
+
+            $street,
+
+            $locationAddress
+
+        ]);
+
+
+
+        $message = 'Attendance submitted successfully!';
+
+        $messageType = 'success';
+
+
+
+        // Clear only location values after a successful submission.
+
+        $_POST['latitude'] = '';
+
+        $_POST['longitude'] = '';
+
+        $_POST['barangay'] = '';
+
+        $_POST['street'] = '';
+
+        $_POST['location_address'] = '';
+
+    }
+
+}
+
+?>
+
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>PEO Attendance</title>
+
+
+
+<style>
+
+* { box-sizing: border-box; }
+
+
+
+body {
+
+    margin: 0;
+
+    font-family: Arial, Helvetica, sans-serif;
+
+    background: #f4f6f9;
+
+    color: #222;
+
+}
+
+
+
+.header {
+
+    background: #1f7a3d;
+
+    color: #fff;
+
+    padding: 18px 24px;
+
+    box-shadow: 0 2px 8px rgba(0,0,0,.12);
+
+}
+
+
+
+.header h1 {
+
+    margin: 0;
+
+    font-size: 22px;
+
+}
+
+
+
+.header p {
+
+    margin: 5px 0 0;
+
+    opacity: .9;
+
+    font-size: 13px;
+
+}
+
+
+
+.container {
+
+    width: min(1000px, calc(100% - 30px));
+
+    margin: 25px auto;
+
+}
+
+
+
+.card {
+
+    background: #fff;
+
+    border-radius: 12px;
+
+    padding: 25px;
+
+    box-shadow: 0 2px 12px rgba(0,0,0,.08);
+
+    margin-bottom: 20px;
+
+}
+
+
+
+.card h2 {
+
+    margin: 0 0 5px;
+
+    color: #1f7a3d;
+
+}
+
+
+
+.subtitle {
+
+    color: #777;
+
+    font-size: 13px;
+
+    margin-bottom: 22px;
+
+}
+
+
+
+.form-grid {
+
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 16px;
+
+}
+
+
+
+.form-group {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 7px;
+
+}
+
+
+
+.form-group.full {
+
+    grid-column: 1 / -1;
+
+}
+
+
+
+label {
+
+    font-size: 13px;
+
+    font-weight: bold;
+
+}
+
+
+
+input, select {
+
+    width: 100%;
+
+    padding: 11px 12px;
+
+    border: 1px solid #d6dbe0;
+
+    border-radius: 7px;
+
+    font-size: 14px;
+
+    outline: none;
+
+}
+
+
+
+input:focus, select:focus {
+
+    border-color: #1f7a3d;
+
+    box-shadow: 0 0 0 2px rgba(31,122,61,.1);
+
+}
+
+
+
+.location-card {
+
+    margin-top: 20px;
+
+    padding: 18px;
+
+    border-radius: 10px;
+
+    background: #f7faf8;
+
+    border: 1px solid #dcebe1;
+
+}
+
+
+
+.location-title {
+
+    display: flex;
+
+    align-items: center;
+
+    justify-content: space-between;
+
+    gap: 10px;
+
+    margin-bottom: 12px;
+
+}
+
+
+
+.location-title strong {
+
+    color: #1f7a3d;
+
+}
+
+
+
+.location-status {
+
+    font-size: 12px;
+
+    color: #666;
+
+}
+
+
+
+.location-grid {
+
+    display: grid;
+
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+
+    gap: 12px;
+
+}
+
+
+
+.location-item {
+
+    background: #fff;
+
+    border: 1px solid #e2e6e9;
+
+    border-radius: 7px;
+
+    padding: 10px;
+
+}
+
+
+
+.location-item span {
+
+    display: block;
+
+    color: #777;
+
+    font-size: 11px;
+
+    margin-bottom: 4px;
+
+}
+
+
+
+.location-item strong {
+
+    font-size: 13px;
+
+    word-break: break-word;
+
+}
+
+
+
+.button-row {
+
+    display: flex;
+
+    gap: 10px;
+
+    margin-top: 22px;
+
+    flex-wrap: wrap;
+
+}
+
+
+
+button, .link-button {
+
+    border: 0;
+
+    border-radius: 7px;
+
+    padding: 12px 18px;
+
+    font-size: 14px;
+
+    font-weight: bold;
+
+    cursor: pointer;
+
+    text-decoration: none;
+
+    display: inline-block;
+
+}
+
+
+
+.btn-location {
+
+    background: #176332;
+
+    color: #fff;
+
+}
+
+
+
+.btn-submit {
+
+    background: #1f7a3d;
+
+    color: #fff;
+
+    min-width: 190px;
+
+}
+
+
+
+.btn-submit:hover, .btn-location:hover {
+
+    opacity: .9;
+
+}
+
+
+
+.alert {
+
+    padding: 13px 15px;
+
+    border-radius: 7px;
+
+    margin-bottom: 18px;
+
+    font-size: 14px;
+
+    font-weight: bold;
+
+}
+
+
+
+.alert.success {
+
+    background: #e8f7ed;
+
+    color: #176332;
+
+    border: 1px solid #bfe4c9;
+
+}
+
+
+
+.alert.error {
+
+    background: #fdecec;
+
+    color: #b42318;
+
+    border: 1px solid #f2c2c0;
+
+}
+
+
+
+.info {
+
+    margin-top: 12px;
+
+    color: #666;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+
+}
+
+
+
+.coords {
+
+    color: #555;
+
+    font-family: monospace;
+
+    font-size: 12px;
+
+}
+
+
+
+@media (max-width: 700px) {
+
+    .form-grid,
+
+    .location-grid {
+
+        grid-template-columns: 1fr;
+
+    }
+
+
+
+    .form-group.full {
+
+        grid-column: auto;
+
+    }
+
+
+
+    .container {
+
+        width: min(100% - 18px, 1000px);
+
+        margin: 10px auto;
+
+    }
+
+
+
+    .card {
+
+        padding: 18px;
+
+    }
+
+}
+
+</style>
+
+</head>
+
+
+
+<body>
+
+
+
+<div class="header">
+
+    <h1>🕒 PEO Attendance</h1>
+
+    <p>Clock in using your current device location</p>
+
+</div>
+
+
+
+<div class="container">
+
+
+
+    <div class="card">
+
+
+
+        <?php if ($message !== ''): ?>
+
+            <div class="alert <?php echo htmlspecialchars($messageType); ?>">
+
+                <?php echo htmlspecialchars($message); ?>
+
+            </div>
+
+        <?php endif; ?>
+
+
+
+        <h2>Clock In</h2>
+
+        <div class="subtitle">
+
+            Your realtime GPS location will be read and converted to a street and barangay when available.
+
+        </div>
+
+
+
+        <form method="POST" id="attendanceForm">
+
+
+
+            <div class="form-grid">
+
+
+
+                <div class="form-group">
+
+                    <label for="worker_name">Worker Full Name</label>
+
+                    <input
+
+                        type="text"
+
+                        id="worker_name"
+
+                        name="worker_name"
+
+                        value="<?php echo htmlspecialchars($_POST['worker_name'] ?? $defaultName); ?>"
+
+                        required
+
+                    >
+
+                </div>
+
+
+
+                <div class="form-group">
+
+                    <label for="role">Position / Role</label>
+
+                    <input
+
+                        type="text"
+
+                        id="role"
+
+                        name="role"
+
+                        value="<?php echo htmlspecialchars($_POST['role'] ?? $defaultRole); ?>"
+
+                        placeholder="e.g. Engineer, Foreman, Laborer"
+
+                    >
+
+                </div>
+
+
+
+            </div>
+
+
+
+            <div class="location-card">
+
+
+
+                <div class="location-title">
+
+                    <strong>📍 Realtime Location</strong>
+
+                    <span class="location-status" id="locationStatus">Waiting for location...</span>
+
+                </div>
+
+
+
+                <div class="location-grid">
+
+
+
+                    <div class="location-item">
+
+                        <span>Barangay</span>
+
+                        <strong id="barangayDisplay">Not yet detected</strong>
+
+                    </div>
+
+
+
+                    <div class="location-item">
+
+                        <span>Street</span>
+
+                        <strong id="streetDisplay">Not yet detected</strong>
+
+                    </div>
+
+
+
+                    <div class="location-item">
+
+                        <span>Full Location</span>
+
+                        <strong id="addressDisplay">Not yet detected</strong>
+
+                    </div>
+
+
+
+                    <div class="location-item">
+
+                        <span>Coordinates</span>
+
+                        <strong class="coords" id="coordinatesDisplay">Not yet detected</strong>
+
+                    </div>
+
+
+
+                </div>
+
+
+
+                <input type="hidden" name="latitude" id="latitude"
+
+                    value="<?php echo htmlspecialchars($_POST['latitude'] ?? ''); ?>">
+
+
+
+                <input type="hidden" name="longitude" id="longitude"
+
+                    value="<?php echo htmlspecialchars($_POST['longitude'] ?? ''); ?>">
+
+
+
+                <input type="hidden" name="barangay" id="barangay"
+
+                    value="<?php echo htmlspecialchars($_POST['barangay'] ?? ''); ?>">
+
+
+
+                <input type="hidden" name="street" id="street"
+
+                    value="<?php echo htmlspecialchars($_POST['street'] ?? ''); ?>">
+
+
+
+                <input type="hidden" name="location_address" id="location_address"
+
+                    value="<?php echo htmlspecialchars($_POST['location_address'] ?? ''); ?>">
+
+
+
+                <div class="button-row">
+
+                    <button type="button" class="btn-location" id="getLocationBtn">
+
+                        📍 Get Current Location
+
+                    </button>
+
+                </div>
+
+
+
+                <div class="info">
+
+                    Location permission is controlled by the browser/device. No GPS accuracy threshold is used.
+
+                    The attendance form is allowed to submit even when the location cannot be obtained.
+
+                </div>
+
+
+
+            </div>
+
+
+
+            <div class="button-row">
+
+                <button type="submit" name="submit_attendance" class="btn-submit">
+
+                    ✔ Submit Attendance
+
+                </button>
+
+            </div>
+
+
+
+        </form>
+
+    </div>
+
+
+
+</div>
+
+
+
+<script>
+
+const statusEl = document.getElementById('locationStatus');
+
+const barangayDisplay = document.getElementById('barangayDisplay');
+
+const streetDisplay = document.getElementById('streetDisplay');
+
+const addressDisplay = document.getElementById('addressDisplay');
+
+const coordinatesDisplay = document.getElementById('coordinatesDisplay');
+
+
+
+const latitudeInput = document.getElementById('latitude');
+
+const longitudeInput = document.getElementById('longitude');
+
+const barangayInput = document.getElementById('barangay');
+
+const streetInput = document.getElementById('street');
+
+const locationAddressInput = document.getElementById('location_address');
+
+
+
+function setStatus(text) {
+
+    statusEl.textContent = text;
+
+}
+
+
+
+function clearLocationDisplay() {
+
+    barangayDisplay.textContent = 'Not detected';
+
+    streetDisplay.textContent = 'Not detected';
+
+    addressDisplay.textContent = 'Not detected';
+
+    coordinatesDisplay.textContent = 'Not detected';
+
+
+
+    latitudeInput.value = '';
+
+    longitudeInput.value = '';
+
+    barangayInput.value = '';
+
+    streetInput.value = '';
+
+    locationAddressInput.value = '';
+
+}
+
+
+
+function getCurrentLocation() {
+
+    if (!navigator.geolocation) {
+
+        setStatus('GPS is not supported by this browser.');
+
+        return;
+
+    }
+
+
+
+    setStatus('Getting current location...');
+
+
+
+    /*
+
+     * No enableHighAccuracy requirement is used as a validation rule.
+
+     * The browser is simply asked for its current position.
+
+     */
+
+    navigator.geolocation.getCurrentPosition(
+
+        async function(position) {
+
+            const lat = position.coords.latitude;
+
+            const lon = position.coords.longitude;
+
+
+
+            latitudeInput.value = lat;
+
+            longitudeInput.value = lon;
+
+
+
+            coordinatesDisplay.textContent =
+
+                lat.toFixed(7) + ', ' + lon.toFixed(7);
+
+
+
+            setStatus('Location found. Getting street and barangay...');
+
+
+
+            try {
+
+                /*
+
+                 * Nominatim reverse geocoding.
+
+                 * The browser obtains the GPS coordinates; this request
+
+                 * converts those coordinates into a readable address.
+
+                 */
+
+                const url =
+
+                    'https://nominatim.openstreetmap.org/reverse' +
+
+                    '?format=jsonv2' +
+
+                    '&lat=' + encodeURIComponent(lat) +
+
+                    '&lon=' + encodeURIComponent(lon) +
+
+                    '&zoom=18' +
+
+                    '&addressdetails=1';
+
+
+
+                const response = await fetch(url, {
+
+                    headers: {
+
+                        'Accept': 'application/json'
+
+                    }
+
+                });
+
+
+
+                if (!response.ok) {
+
+                    throw new Error('Reverse geocoding failed');
+
+                }
+
+
+
+                const data = await response.json();
+
+                const a = data.address || {};
+
+
+
+                /*
+
+                 * Barangay in Philippine addresses is commonly returned
+
+                 * under village/suburb/neighbourhood. We check several
+
+                 * possible OpenStreetMap fields.
+
+                 */
+
+                const barangay =
+
+                    a.village ||
+
+                    a.suburb ||
+
+                    a.neighbourhood ||
+
+                    a.quarter ||
+
+                    a.hamlet ||
+
+                    '';
+
+
+
+                /*
+
+                 * Street may be returned as road. If unavailable,
+
+                 * we fall back to pedestrian/path.
+
+                 */
+
+                const street =
+
+                    a.road ||
+
+                    a.pedestrian ||
+
+                    a.footway ||
+
+                    a.path ||
+
+                    '';
+
+
+
+                const fullAddress =
+
+                    data.display_name ||
+
+                    [
+
+                        street,
+
+                        barangay,
+
+                        a.city || a.town || a.municipality || '',
+
+                        a.state || '',
+
+                        a.country || ''
+
+                    ].filter(Boolean).join(', ');
+
+
+
+                barangayInput.value = barangay;
+
+                streetInput.value = street;
+
+                locationAddressInput.value = fullAddress;
+
+
+
+                barangayDisplay.textContent = barangay || 'Not identified';
+
+                streetDisplay.textContent = street || 'Not identified';
+
+                addressDisplay.textContent = fullAddress || 'Not identified';
+
+
+
+                setStatus('Realtime location ready.');
+
+            } catch (error) {
+
+                /*
+
+                 * Coordinates are still retained even if reverse
+
+                 * geocoding is unavailable.
+
+                 */
+
+                setStatus('GPS found, but address lookup is unavailable.');
+
+
+
+                barangayDisplay.textContent = 'Not identified';
+
+                streetDisplay.textContent = 'Not identified';
+
+                addressDisplay.textContent = 'Coordinates saved';
+
+            }
+
+        },
+
+        function(error) {
+
+            let text = 'Location unavailable. Attendance can still be submitted.';
+
+
+
+            if (error && error.code === 1) {
+
+                text = 'Location permission denied. Attendance can still be submitted.';
+
+            } else if (error && error.code === 2) {
+
+                text = 'Location unavailable. Attendance can still be submitted.';
+
+            } else if (error && error.code === 3) {
+
+                text = 'Location request timed out. Attendance can still be submitted.';
+
+            }
+
+
+
+            setStatus(text);
+
+        },
+
+        {
+
+            enableHighAccuracy: true,
+
+            timeout: 15000,
+
+            maximumAge: 0
+
+        }
+
+    );
+
+}
+
+
+
+document.getElementById('getLocationBtn').addEventListener('click', getCurrentLocation);
+
+
+
+/*
+
+ * Automatically request the realtime location when the attendance page opens.
+
+ * The user can also press "Get Current Location" again.
+
+ */
+
+window.addEventListener('load', function() {
+
+    getCurrentLocation();
+
+});
+
+</script>
+
+
+
+</body>
+
+</html>
